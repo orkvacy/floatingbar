@@ -1,0 +1,10 @@
+node_modules
+dist
+src-tauri/target
+src-tauri/gen
+*.log
+
+# Local editor / assistant settings
+.claude/
+.vscode/
+Thumbs.db
