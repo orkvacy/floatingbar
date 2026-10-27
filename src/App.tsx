@@ -1,6 +1,18 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BatteryIcon, NextIcon, NoteIcon, PauseIcon, PlayIcon, PrevIcon, SpeakerIcon } from "./icons";
+import {
+  BatteryIcon,
+  DeafenIcon,
+  HeadphoneIcon,
+  MicIcon,
+  MicOffIcon,
+  NextIcon,
+  NoteIcon,
+  PauseIcon,
+  PlayIcon,
+  PrevIcon,
+  SpeakerIcon,
+} from "./icons";
 import {
   appName,
   demo,
@@ -26,6 +38,7 @@ import {
   type Shortcut,
   type VolumeInfo,
 } from "./lib/native";
+import { useDiscord, type DiscordUser } from "./lib/discord";
 
 const spring = { type: "spring", stiffness: 420, damping: 32, mass: 0.9 } as const;
 
@@ -38,11 +51,24 @@ const PAGES = [
 const HOME_PAGE = 1;
 /** Horizontal scroll needed for one page turn (touchpad px). */
 const SWIPE_DISTANCE = 40;
+/** Minimum px drag distance to count as a swipe (mouse drag). */
+const DRAG_SWIPE_THRESHOLD = 50;
 const slide = {
   enter: (dir: number) => ({ x: dir * 60, opacity: 0 }),
   center: { x: 0, opacity: 1 },
   exit: (dir: number) => ({ x: -dir * 60, opacity: 0 }),
 };
+// --- Mock Discord VC data (used in demo mode when not in VC) ---
+
+const MOCK_DC_USERS: DiscordUser[] = [
+  { id: "1", name: "Raven", avatar: null, volume: 0.8, isMuted: false, isSpeaking: true },
+  { id: "2", name: "Kazuha", avatar: null, volume: 0.6, isMuted: false, isSpeaking: false },
+  { id: "3", name: "Xyra", avatar: null, volume: 1.0, isMuted: true, isSpeaking: false },
+  { id: "4", name: "Zeta", avatar: null, volume: 0.5, isMuted: false, isSpeaking: false },
+  { id: "5", name: "Nova", avatar: null, volume: 0.9, isMuted: false, isSpeaking: true },
+  { id: "6", name: "Axel", avatar: null, volume: 0.7, isMuted: false, isSpeaking: false },
+  { id: "7", name: "Luna", avatar: null, volume: 0.4, isMuted: true, isSpeaking: false },
+];
 const PEEK_MS = 2800;
 const NOTIFICATION_MS = 6000;
 const fade = {
@@ -114,11 +140,26 @@ export default function App() {
   // Also stay open while a reply streams in, so it can be read.
   const pinned = typing || ask.busy;
 
+  // Discord VC overlay and live IPC connection
+  const discord = useDiscord();
+  const [showDC, setShowDC] = useState(false);
+
+  // Auto-open Discord VC when joining voice, auto-close when leaving
+  const wasInVoice = useRef(discord.inVoice);
+  useEffect(() => {
+    if (discord.inVoice && !wasInVoice.current) {
+      setShowDC(true);
+    } else if (!discord.inVoice && wasInVoice.current) {
+      setShowDC(false);
+    }
+    wasInVoice.current = discord.inVoice;
+  }, [discord.inVoice]);
+
   const mode = permission
     ? "permission"
     : notification
       ? "notification"
-      : hover || peek || pinned
+      : hover || peek || pinned || showDC
         ? "open"
         : "compact";
   const expanded = mode !== "compact";
@@ -148,7 +189,7 @@ export default function App() {
   const swipe = useRef({ distance: 0, last: 0, lockedUntil: 0 });
   const onWheel = (e: React.WheelEvent) => {
     const horizontal = e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY);
-    if (horizontal && mode === "open") {
+    if (horizontal && mode === "open" && !showDC) {
       const s = swipe.current;
       const t = performance.now();
       if (t - s.last > 250) s.distance = 0;
@@ -168,6 +209,27 @@ export default function App() {
     }
   };
 
+  // --- Mouse drag to swipe (for PC without touchpad / touchscreen) ---
+  const dragRef = useRef<{ startX: number; swiped: boolean } | null>(null);
+  const onDragPointerDown = (e: React.PointerEvent) => {
+    // Only act on the body area, not on interactive elements
+    if ((e.target as HTMLElement).closest("button, input, textarea, select, a, .ask__grip")) return;
+    if (mode !== "open" || showDC) return;
+    dragRef.current = { startX: e.clientX, swiped: false };
+  };
+  const onDragPointerMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d || d.swiped) return;
+    const delta = e.clientX - d.startX;
+    if (Math.abs(delta) >= DRAG_SWIPE_THRESHOLD) {
+      turn(delta < 0 ? 1 : -1); // drag left = next page, drag right = prev
+      d.swiped = true;
+    }
+  };
+  const onDragPointerUp = () => {
+    dragRef.current = null;
+  };
+
   return (
     <div className="stage">
       <motion.div
@@ -179,8 +241,25 @@ export default function App() {
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         onWheel={onWheel}
-        {...drag}
+        onPointerDown={(e) => {
+          drag.onPointerDown(e);
+          onDragPointerDown(e);
+        }}
+        onPointerMove={(e) => {
+          drag.onPointerMove(e);
+          onDragPointerMove(e);
+        }}
+        onPointerUp={() => {
+          drag.onPointerUp();
+          onDragPointerUp();
+        }}
+        onPointerCancel={() => {
+          drag.onPointerUp();
+          onDragPointerUp();
+        }}
+        onDoubleClick={drag.onDoubleClick}
       >
+
         <AnimatePresence mode="popLayout" initial={false}>
           {mode === "permission" && permission ? (
             <motion.div key={`p${permission.id}`} className="open" {...fade}>
@@ -192,56 +271,76 @@ export default function App() {
             </motion.div>
           ) : mode === "open" ? (
             <motion.div key="open" className="open" {...fade}>
-              <Header now={now} battery={battery}>
+              <Header
+                now={now}
+                battery={battery}
+                showDC={showDC}
+                inVoice={discord.inVoice}
+                onToggleDC={() => setShowDC((v) => !v)}
+              >
                 <Shortcuts shortcuts={shortcuts} onOpen={openShortcut} onEdit={editShortcuts} />
               </Header>
               {notifyError && <p className="hint">{notifyError}</p>}
               <AnimatePresence mode="popLayout" initial={false} custom={pager.dir}>
-                <motion.div
-                  key={page}
-                  custom={pager.dir}
-                  variants={slide}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.22, ease: "easeOut" }}
-                >
-                  {page === "notifications" ? (
-                    <NotificationsPage
-                      history={history}
-                      now={now}
-                      onRemove={removeNotification}
-                      onClear={clearNotifications}
-                    />
-                  ) : page === "claude" ? (
-                    <ClaudePage ask={ask} onTyping={setTyping} />
-                  ) : media ? (
-                    <Player media={media} onPlayPause={playPause} onNext={next} onPrevious={previous}>
-                      {volume && (
-                        <Volume
-                          volume={volume}
-                          app={appName(media.appId)}
-                          onLevel={setLevel}
-                          onMuted={setMuted}
-                        />
-                      )}
-                    </Player>
-                  ) : (
-                    <p className="empty">Tidak ada media yang diputar</p>
-                  )}
-                </motion.div>
+                {showDC ? (
+                  <motion.div
+                    key="discord"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    transition={{ duration: 0.22, ease: "easeOut" }}
+                  >
+                    <DiscordVC discord={discord} />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key={page}
+                    custom={pager.dir}
+                    variants={slide}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: "easeOut" }}
+                  >
+                    {page === "notifications" ? (
+                      <NotificationsPage
+                        history={history}
+                        now={now}
+                        onRemove={removeNotification}
+                        onClear={clearNotifications}
+                      />
+                    ) : page === "claude" ? (
+                      <ClaudePage ask={ask} onTyping={setTyping} />
+                    ) : media ? (
+                      <Player media={media} onPlayPause={playPause} onNext={next} onPrevious={previous}>
+                        {volume && (
+                          <Volume
+                            volume={volume}
+                            app={appName(media.appId)}
+                            onLevel={setLevel}
+                            onMuted={setMuted}
+                          />
+                        )}
+                      </Player>
+                    ) : (
+                      <p className="empty">Tidak ada media yang diputar</p>
+                    )}
+                  </motion.div>
+                )}
               </AnimatePresence>
-              <div className="dots">
-                {PAGES.map((p, i) => (
-                  <button
-                    key={p.id}
-                    className={i === pager.index ? "dots__on" : ""}
-                    onClick={() => turn(i - pager.index)}
-                    title={p.label}
-                    aria-label={p.label}
-                  />
-                ))}
-              </div>
+              {!showDC && (
+                <div className="dots">
+                  {PAGES.map((p, i) => (
+                    <button
+                      key={p.id}
+                      className={i === pager.index ? "dots__on" : ""}
+                      onClick={() => turn(i - pager.index)}
+                      title={p.label}
+                      aria-label={p.label}
+                    />
+                  ))}
+                </div>
+              )}
             </motion.div>
           ) : (
             <motion.div
@@ -558,10 +657,16 @@ function Header({
   now,
   battery,
   children,
+  showDC,
+  inVoice,
+  onToggleDC,
 }: {
   now: Date;
   battery: BatteryInfo | null;
   children?: React.ReactNode;
+  showDC?: boolean;
+  inVoice?: boolean;
+  onToggleDC?: () => void;
 }) {
   return (
     <div className="header">
@@ -572,6 +677,14 @@ function Header({
         </span>
       </div>
       {children}
+      <button
+        className={`dc-toggle ${showDC ? "dc-toggle--on" : ""} ${inVoice ? "dc-toggle--active" : ""}`}
+        onClick={onToggleDC}
+        title={showDC ? "Tutup Discord VC" : inVoice ? "Buka Discord VC (Aktif)" : "Buka Discord VC"}
+        aria-label={showDC ? "Tutup Discord VC" : "Buka Discord VC"}
+      >
+        <HeadphoneIcon />
+      </button>
       <Battery battery={battery} showPercent />
     </div>
   );
@@ -722,6 +835,152 @@ function Battery({ battery, showPercent }: { battery: BatteryInfo | null; showPe
       {showPercent && <span>{battery.percent}%</span>}
       <BatteryIcon percent={battery.percent} plugged={battery.plugged} />
     </span>
+  );
+}
+
+// ---- Discord Voice Channel Panel ----
+const DC_VISIBLE = 5;
+
+function DiscordVC({ discord }: { discord: ReturnType<typeof useDiscord> }) {
+  const isReal = discord.inVoice;
+  const users = isReal ? discord.users : (demo ? MOCK_DC_USERS : []);
+  const [page, setPage] = useState(0);
+
+  const totalPages = Math.max(1, Math.ceil(users.length / DC_VISIBLE));
+  const visible = users.slice(page * DC_VISIBLE, page * DC_VISIBLE + DC_VISIBLE);
+
+  const setUserVolume = (id: string, vol: number) => {
+    if (isReal) {
+      discord.setUserVolume(id, vol);
+    }
+  };
+  const toggleUserMute = (id: string, currentlyMuted: boolean) => {
+    if (isReal) {
+      discord.toggleUserMute(id, currentlyMuted);
+    }
+  };
+
+  return (
+    <div className="dc">
+      <div className="dc__header">
+        <span className="dc__channel">
+          <span className="dc__channel-icon">🔊</span>
+          {isReal ? discord.channelName : "Tidak terhubung VC"}
+        </span>
+        <span className="dc__count">{users.length} user</span>
+      </div>
+
+      <div className="dc__users">
+        {totalPages > 1 && page > 0 && (
+          <button
+            className="dc__arrow dc__arrow--left"
+            onClick={() => setPage((p) => p - 1)}
+            aria-label="User sebelumnya"
+          >
+            ‹
+          </button>
+        )}
+
+        <div className="dc__user-list">
+          {visible.length === 0 ? (
+            <p className="empty" style={{ padding: "12px 0" }}>
+              Tidak ada user di voice channel
+            </p>
+          ) : (
+            visible.map((user) => (
+              <div key={user.id} className={`dc__user ${user.isSpeaking ? "dc__user--speaking" : ""}`}>
+                <div className="dc__avatar-wrap">
+                  <div className="dc__avatar">
+                    {user.avatar ? (
+                      <img src={user.avatar} alt="" draggable={false} />
+                    ) : (
+                      <span>{user.name.charAt(0).toUpperCase()}</span>
+                    )}
+                  </div>
+                  {user.isMuted && (
+                    <span className="dc__user-muted-badge">
+                      <MicOffIcon />
+                    </span>
+                  )}
+                </div>
+                <span className="dc__name">{user.name}</span>
+                <div className="dc__user-vol">
+                  <button
+                    className="dc__user-mute"
+                    onClick={() => toggleUserMute(user.id, user.isMuted)}
+                    title={user.isMuted ? `Bunyikan ${user.name}` : `Bisukan ${user.name}`}
+                    aria-label={user.isMuted ? `Bunyikan ${user.name}` : `Bisukan ${user.name}`}
+                  >
+                    <SpeakerIcon level={user.isMuted ? 0 : user.volume} muted={user.isMuted} />
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={Math.round((user.isMuted ? 0 : user.volume) * 100)}
+                    onChange={(e) => setUserVolume(user.id, Number(e.target.value) / 100)}
+                    style={{ "--fill": `${(user.isMuted ? 0 : user.volume) * 100}%` } as React.CSSProperties}
+                    aria-label={`Volume ${user.name}`}
+                  />
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {totalPages > 1 && page < totalPages - 1 && (
+          <button
+            className="dc__arrow dc__arrow--right"
+            onClick={() => setPage((p) => p + 1)}
+            aria-label="User berikutnya"
+          >
+            ›
+          </button>
+        )}
+      </div>
+
+      {totalPages > 1 && (
+        <div className="dc__page-dots">
+          {Array.from({ length: totalPages }, (_, i) => (
+            <span key={i} className={i === page ? "dc__page-dot--on" : ""} />
+          ))}
+        </div>
+      )}
+
+      <div className="dc__self">
+        <button
+          className={`dc__btn ${discord.selfMuted ? "dc__btn--active" : ""}`}
+          onClick={() => discord.setMute(!discord.selfMuted)}
+          title={discord.selfMuted ? "Unmute" : "Mute"}
+          aria-label={discord.selfMuted ? "Unmute" : "Mute"}
+        >
+          {discord.selfMuted ? <MicOffIcon /> : <MicIcon />}
+          <span>{discord.selfMuted ? "Unmute" : "Mute"}</span>
+        </button>
+        <button
+          className={`dc__btn ${discord.selfDeafened ? "dc__btn--active" : ""}`}
+          onClick={() => {
+            const nextDeaf = !discord.selfDeafened;
+            discord.setDeaf(nextDeaf);
+            if (nextDeaf && !discord.selfMuted) discord.setMute(true);
+          }}
+          title={discord.selfDeafened ? "Undeafen" : "Deafen"}
+          aria-label={discord.selfDeafened ? "Undeafen" : "Deafen"}
+        >
+          <DeafenIcon deafened={discord.selfDeafened} />
+          <span>{discord.selfDeafened ? "Undeafen" : "Deafen"}</span>
+        </button>
+        <button
+          className="dc__btn dc__btn--disconnect"
+          onClick={() => discord.disconnect()}
+          title="Disconnect dari Voice"
+          aria-label="Disconnect dari Voice"
+        >
+          <span style={{ fontSize: 16 }}>✕</span>
+          <span>Keluar</span>
+        </button>
+      </div>
+    </div>
   );
 }
 

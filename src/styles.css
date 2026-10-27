@@ -820,3 +820,334 @@ body.demo {
     height: 10px;
   }
 }
+
+/* Discord VC toggle button in the header */
+.dc-toggle {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.1s;
+}
+
+.dc-toggle:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--fg);
+}
+
+.dc-toggle:active {
+  transform: scale(0.9);
+}
+
+.dc-toggle--on {
+  background: rgba(88, 101, 242, 0.3);
+  color: #7289da;
+}
+
+.dc-toggle--on:hover {
+  background: rgba(88, 101, 242, 0.45);
+  color: #99aab5;
+}
+
+.dc-toggle--active {
+  color: #5865f2;
+  position: relative;
+}
+
+.dc-toggle--active::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+}
+
+
+/* Discord VC panel */
+.dc {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dc__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dc__channel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--fg);
+}
+
+.dc__channel-icon {
+  font-size: 14px;
+}
+
+.dc__count {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* User list with optional arrows */
+.dc__users {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dc__arrow {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.dc__arrow:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--fg);
+}
+
+.dc__user-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dc__user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  transition: background 0.15s;
+}
+
+.dc__user:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Avatar with optional speaking ring */
+.dc__avatar-wrap {
+  position: relative;
+  flex: none;
+}
+
+.dc__avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #5865f2, #eb459e);
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+
+.dc__user--speaking .dc__avatar {
+  box-shadow: 0 0 0 2.5px var(--green);
+}
+
+.dc__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dc__user-muted-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #000;
+  display: grid;
+  place-items: center;
+}
+
+.dc__user-muted-badge svg {
+  width: 10px;
+  height: 10px;
+}
+
+.dc__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Per-user volume control */
+.dc__user-vol {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 120px;
+}
+
+.dc__user-mute {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.dc__user-mute:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--fg);
+}
+
+.dc__user-vol input {
+  flex: 1;
+  height: 4px;
+  margin: 0;
+  appearance: none;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--fg) var(--fill), var(--track) var(--fill));
+  cursor: pointer;
+}
+
+.dc__user-vol input::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--fg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  transition: transform 0.1s;
+}
+
+.dc__user-vol input:active::-webkit-slider-thumb {
+  transform: scale(1.3);
+}
+
+/* Page dots for user pagination */
+.dc__page-dots {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+.dc__page-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transition: background 0.2s;
+}
+
+.dc__page-dots .dc__page-dot--on {
+  background: var(--fg);
+}
+
+/* Self controls: mute, deafen, disconnect */
+.dc__self {
+  display: flex;
+  gap: 6px;
+}
+
+.dc__btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.1s;
+}
+
+.dc__btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--fg);
+}
+
+.dc__btn:active {
+  transform: scale(0.95);
+}
+
+.dc__btn--active {
+  background: rgba(255, 69, 58, 0.2);
+  color: var(--red);
+}
+
+.dc__btn--active:hover {
+  background: rgba(255, 69, 58, 0.3);
+  color: var(--red);
+}
+
+.dc__btn--disconnect {
+  background: rgba(255, 69, 58, 0.15);
+  color: var(--red);
+}
+
+.dc__btn--disconnect:hover {
+  background: rgba(255, 69, 58, 0.28);
+}
+
+.dc__btn svg {
+  width: 14px;
+  height: 14px;
+}

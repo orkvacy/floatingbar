@@ -62,3 +62,39 @@ export function BatteryIcon({ percent, plugged }: { percent: number; plugged: bo
     </svg>
   );
 }
+
+export const HeadphoneIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base} width={16} height={16} {...p}>
+    <path d="M4 13V10a8 8 0 0 1 16 0v3" fill="none" stroke="currentColor" strokeWidth={2} />
+    <rect x="2" y="13" width="4" height="6" rx="1.5" fill="currentColor" />
+    <rect x="18" y="13" width="4" height="6" rx="1.5" fill="currentColor" />
+  </svg>
+);
+
+export const MicIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base} width={16} height={16} {...p}>
+    <rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor" />
+    <path d="M5 10a7 7 0 0 0 14 0" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
+    <line x1="12" y1="19" x2="12" y2="22" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
+  </svg>
+);
+
+export const MicOffIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base} width={16} height={16} {...p}>
+    <rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor" opacity={0.4} />
+    <path d="M5 10a7 7 0 0 0 14 0" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" opacity={0.4} />
+    <line x1="12" y1="19" x2="12" y2="22" stroke="currentColor" strokeWidth={2} strokeLinecap="round" opacity={0.4} />
+    <line x1="3" y1="3" x2="21" y2="21" stroke="var(--red)" strokeWidth={2.5} strokeLinecap="round" />
+  </svg>
+);
+
+export function DeafenIcon({ deafened }: { deafened: boolean }) {
+  return (
+    <svg {...base} width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+      <path d="M4 13V10a8 8 0 0 1 16 0v3" />
+      <rect x="2" y="13" width="4" height="6" rx="1.5" fill="currentColor" stroke="none" opacity={deafened ? 0.4 : 1} />
+      <rect x="18" y="13" width="4" height="6" rx="1.5" fill="currentColor" stroke="none" opacity={deafened ? 0.4 : 1} />
+      {deafened && <line x1="3" y1="3" x2="21" y2="21" stroke="var(--red)" strokeWidth={2.5} />}
+    </svg>
+  );
+}

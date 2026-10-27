@@ -2,6 +2,7 @@ mod ask;
 mod audio;
 mod battery;
 mod claude_app;
+mod discord;
 mod media;
 mod notify;
 mod permission;
@@ -351,7 +352,9 @@ pub fn run() {
             None,
         ))
         .manage(AppState::default())
-        .manage(permission::Pending::default())        .invoke_handler(tauri::generate_handler![
+        .manage(permission::Pending::default())
+        .manage(discord::DiscordManager::default())
+        .invoke_handler(tauri::generate_handler![
             get_media,
             get_battery,
             get_notify_error,
@@ -371,7 +374,13 @@ pub fn run() {
             set_muted,
             media_play_pause,
             media_next,
-            media_previous
+            media_previous,
+            discord::get_discord_state,
+            discord::discord_set_mute,
+            discord::discord_set_deaf,
+            discord::discord_set_user_volume,
+            discord::discord_toggle_user_mute,
+            discord::discord_disconnect
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::Moved(pos) = event {
@@ -391,6 +400,7 @@ pub fn run() {
             permission::spawn_server(app.handle().clone());
             ui_permission::spawn(app.handle());
             claude_app::spawn(app.handle());
+            discord::spawn(app.handle().clone());
             spawn_hover_loop(app.handle().clone(), window);
             Ok(())
         })
