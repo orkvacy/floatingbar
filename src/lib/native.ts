@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useRef, useState, type PointerEvent, type RefObject } from "react";
 
 export type MediaInfo = {
@@ -502,29 +501,60 @@ export function useNotifications() {
  * travels a few px, so clicks and double-clicks still work.
  */
 export function useDragWindow() {
-  const start = useRef<{ x: number; y: number } | null>(null);
+  const start = useRef<{ x: number; y: number; grabX: number; grabY: number; headerX: number; headerY: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
   // Controls, text fields and selectable answers keep their own mouse handling.
   const onButton = (e: { target: EventTarget }) =>
-    (e.target as HTMLElement).closest("button, input, textarea, select, .ask__grip") !== null;
+    (e.target as HTMLElement).closest("button, input, textarea, select, a, label, summary, .organizer, .ask__grip") !== null;
+  const onHandle = (e: { target: EventTarget }) =>
+    (e.target as HTMLElement).closest("[data-drag-handle]") !== null;
 
   return {
+    dragging,
     onPointerDown: (e: PointerEvent) => {
-      if (e.button === 0 && !onButton(e)) start.current = { x: e.screenX, y: e.screenY };
+      if (e.button === 0 && onHandle(e) && !onButton(e)) {
+        const handle = (e.target as HTMLElement).closest<HTMLElement>("[data-drag-handle]")!;
+        const rect = handle.getBoundingClientRect();
+        start.current = { x: e.screenX, y: e.screenY, grabX: e.clientX, grabY: e.clientY,
+          headerX: rect.x + rect.width / 2, headerY: rect.y + rect.height / 2 };
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }
     },
     onPointerMove: (e: PointerEvent) => {
       const s = start.current;
       if (!s || Math.hypot(e.screenX - s.x, e.screenY - s.y) < 4) return;
       start.current = null;
-      if (isTauri) getCurrentWindow().startDragging();
+      if (isTauri) {
+        setDragging(true);
+        void invoke("drag_window_header", { grabX: s.grabX, grabY: s.grabY, headerX: s.headerX, headerY: s.headerY })
+          .catch(console.error).finally(() => setDragging(false));
+      }
     },
     onPointerUp: () => {
       start.current = null;
     },
     /** Double-click puts the pill back at the top-center. */
     onDoubleClick: (e: { target: EventTarget }) => {
-      if (isTauri && !onButton(e)) invoke("reset_position");
+      if (isTauri && onHandle(e) && !onButton(e)) invoke("reset_position");
     },
   };
+}
+
+/** The native window keeps the compact pill anchored when expansion points up. */
+export function useWindowAnchor() {
+  const [up, setUp] = useState(!isTauri && new URLSearchParams(window.location.search).get("anchor") === "bottom");
+  useEffect(() => {
+    if (!isTauri) return;
+    let active = true;
+    let receivedEvent = false;
+    const unlisten = listen<boolean>("window-anchor", (event) => {
+      if (active) { receivedEvent = true; setUp(event.payload); }
+    });
+    void unlisten.then(() => invoke<boolean>("get_window_anchor"))
+      .then((value) => { if (active && !receivedEvent) setUp(value); }).catch(console.error);
+    return () => { active = false; void unlisten.then((f) => f()).catch(console.error); };
+  }, []);
+  return up;
 }
 
 /** Hover as seen by the Rust cursor poller (the window is click-through). */
@@ -539,7 +569,7 @@ export function useNativeHover(onChange: (hover: boolean) => void) {
 }
 
 /** Tells Rust where the pill is, so only that area catches the mouse. */
-export function useHitRegion(ref: RefObject<HTMLElement | null>) {
+export function useHitRegion(ref: RefObject<HTMLElement | null>, expandUp = false) {
   useEffect(() => {
     const el = ref.current;
     if (!isTauri || !el) return;
@@ -558,14 +588,20 @@ export function useHitRegion(ref: RefObject<HTMLElement | null>) {
     };
     const ro = new ResizeObserver(report);
     ro.observe(el);
+    window.addEventListener("resize", report);
     report();
-    return () => ro.disconnect();
-  }, [ref]);
+    return () => { ro.disconnect(); window.removeEventListener("resize", report); };
+  }, [ref, expandUp]);
 }
 
 export function useClock() {
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState(() => {
+    const value = new Date();
+    if (demo) value.setHours(14, 30, 0, 0);
+    return value;
+  });
   useEffect(() => {
+    if (demo) return;
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);

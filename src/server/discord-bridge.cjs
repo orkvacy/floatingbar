@@ -1,8 +1,8 @@
 const net = require('net');
 const https = require('https');
 
-const CLIENT_ID = "1563832553541075005";
-const CLIENT_SECRET = "yzHU5CDNpkdWdDeiUDynBTEHnsNual82";
+const CLIENT_ID = process.env.FLOATINGBAR_DISCORD_CLIENT_ID || "";
+const CLIENT_SECRET = process.env.FLOATINGBAR_DISCORD_CLIENT_SECRET || "";
 const PIPE_NAME = '\\\\.\\pipe\\discord-ipc-0';
 
 class DiscordBridge {
@@ -25,7 +25,8 @@ class DiscordBridge {
       users: []
     };
 
-    this.connect();
+    if (CLIENT_ID && CLIENT_SECRET) this.connect();
+    else this.state.error = "Live preview Discord membutuhkan kredensial melalui environment. Gunakan mode demo untuk pratinjau tanpa akun.";
   }
 
   notifySubscribers() {

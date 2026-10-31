@@ -2,6 +2,28 @@ import type { SVGProps } from "react";
 
 const base = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "currentColor" };
 
+export const CheckListIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base} {...p} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="m3 6 1.5 1.5L7 4.5M10 6h11M3 12l1.5 1.5L7 10.5M10 12h11M3 18l1.5 1.5L7 16.5M10 18h11" /></svg>
+);
+export const CalendarIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base} {...p} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round"><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M7 3v4m10-4v4M3 10h18m-13 4h2m4 0h2m-8 3h2" /></svg>
+);
+export const CloseIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base} {...p} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round"><path d="m7 7 10 10M7 17 17 7" /></svg>
+);
+export const TrashIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base} {...p} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7" /></svg>
+);
+export const EditIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base} {...p} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="m15 4 5 5M4 20l5-1L21 7l-5-5L4 14v6Z" /></svg>
+);
+export const RefreshIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base} {...p} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 11-2l3 4M4 15l3 4a7 7 0 0 0 11-2" /></svg>
+);
+export const PinIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base} {...p} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M12 17v5M9 3h6M9 3v6l-4 5v3h14v-3l-4-5V3" /></svg>
+);
+
 export const PlayIcon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base} {...p}>
     <path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l11.1-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14Z" />

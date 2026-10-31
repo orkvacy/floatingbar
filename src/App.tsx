@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BatteryIcon,
+  CheckListIcon,
   DeafenIcon,
   HeadphoneIcon,
   MicIcon,
@@ -9,6 +10,7 @@ import {
   NextIcon,
   NoteIcon,
   PauseIcon,
+  PinIcon,
   PlayIcon,
   PrevIcon,
   SpeakerIcon,
@@ -22,6 +24,7 @@ import {
   useHitRegion,
   useMedia,
   useNativeHover,
+  useWindowAnchor,
   shortcutIcon,
   MAX_EXTRA,
   useAsk,
@@ -38,7 +41,11 @@ import {
   type Shortcut,
   type VolumeInfo,
 } from "./lib/native";
-import { useDiscord, type DiscordUser } from "./lib/discord";
+import { useDiscord, DEMO_DISCORD_USERS as MOCK_DC_USERS, type DiscordUser } from "./lib/discord";
+import { useTodos } from "./lib/todos";
+import { useCalendar } from "./lib/calendar";
+import { TodoPanel } from "./components/TodoPanel";
+import { CalendarPage } from "./components/CalendarPage";
 
 const spring = { type: "spring", stiffness: 420, damping: 32, mass: 0.9 } as const;
 
@@ -47,6 +54,7 @@ const PAGES = [
   { id: "notifications", label: "Notifikasi" },
   { id: "media", label: "Musik" },
   { id: "claude", label: "Claude" },
+  { id: "calendar", label: "Agenda" },
 ] as const;
 const HOME_PAGE = 1;
 /** Horizontal scroll needed for one page turn (touchpad px). */
@@ -60,15 +68,6 @@ const slide = {
 };
 // --- Mock Discord VC data (used in demo mode when not in VC) ---
 
-const MOCK_DC_USERS: DiscordUser[] = [
-  { id: "1", name: "Raven", avatar: null, volume: 0.8, isMuted: false, isSpeaking: true },
-  { id: "2", name: "Kazuha", avatar: null, volume: 0.6, isMuted: false, isSpeaking: false },
-  { id: "3", name: "Xyra", avatar: null, volume: 1.0, isMuted: true, isSpeaking: false },
-  { id: "4", name: "Zeta", avatar: null, volume: 0.5, isMuted: false, isSpeaking: false },
-  { id: "5", name: "Nova", avatar: null, volume: 0.9, isMuted: false, isSpeaking: true },
-  { id: "6", name: "Axel", avatar: null, volume: 0.7, isMuted: false, isSpeaking: false },
-  { id: "7", name: "Luna", avatar: null, volume: 0.4, isMuted: true, isSpeaking: false },
-];
 const PEEK_MS = 2800;
 const NOTIFICATION_MS = 6000;
 const fade = {
@@ -94,6 +93,7 @@ export default function App() {
   const drag = useDragWindow();
   const { volume, setLevel, nudge, setMuted } = useVolume(media !== null, media?.appId);
   const pillRef = useRef<HTMLDivElement>(null);
+  const expandUp = useWindowAnchor();
 
   // Collapse a little after the cursor leaves, so brushing the edge
   // doesn't make the island flicker.
@@ -105,7 +105,7 @@ export default function App() {
     else leaveTimer.current = window.setTimeout(() => setHoverNow(false), 180);
   }, []);
   useNativeHover(setHover);
-  useHitRegion(pillRef);
+  useHitRegion(pillRef, expandUp);
 
   // Briefly open by itself when the charger is plugged in. (Not on track
   // changes: the compact artwork already shows the new song.)
@@ -137,20 +137,29 @@ export default function App() {
   // (The select counts as typing: its dropdown takes focus.)
   const ask = useAsk();
   const [typing, setTyping] = useState(false);
-  // Also stay open while a reply streams in, so it can be read.
-  const pinned = typing || ask.busy;
+  const [pager, setPager] = useState({ index: HOME_PAGE, dir: 0 });
+  const page = PAGES[pager.index].id;
+  const todos = useTodos();
+  const [showTodo, setShowTodo] = useState(false);
 
   // Discord VC overlay and live IPC connection
   const discord = useDiscord();
   const [showDC, setShowDC] = useState(false);
+  const [discordPinned, setDiscordPinned] = useState(false);
+  const demoOpen = !!demo && demo !== "compact" && demo !== "discord" && demo !== "discord-compact";
+  const calendar = useCalendar(page === "calendar" && !showTodo && !showDC && (hover || peek || typing || demoOpen));
+  // Stay open for active editing, OAuth, and explicit overlays.
+  const pinned = drag.dragging || demoOpen || (showDC ? discordPinned : typing || ask.busy || calendar.connecting || showTodo);
 
   // Auto-open Discord VC when joining voice, auto-close when leaving
   const wasInVoice = useRef(discord.inVoice);
   useEffect(() => {
     if (discord.inVoice && !wasInVoice.current) {
       setShowDC(true);
+      setShowTodo(false);
     } else if (!discord.inVoice && wasInVoice.current) {
       setShowDC(false);
+      setDiscordPinned(false);
     }
     wasInVoice.current = discord.inVoice;
   }, [discord.inVoice]);
@@ -159,29 +168,30 @@ export default function App() {
     ? "permission"
     : notification
       ? "notification"
-      : hover || peek || pinned || showDC
+      : hover || peek || pinned
         ? "open"
         : "compact";
   const expanded = mode !== "compact";
   const { shortcuts, open: openShortcut, edit: editShortcuts } = useShortcuts(mode === "open");
 
   // Which page is showing, and which way the last turn went (for the slide).
-  const [pager, setPager] = useState({ index: HOME_PAGE, dir: 0 });
   const turn = useCallback((delta: number) => {
     setPager((p) => {
       const index = Math.min(PAGES.length - 1, Math.max(0, p.index + delta));
       return index === p.index ? p : { index, dir: delta };
     });
   }, []);
-  const page = PAGES[pager.index].id;
 
   // Demo states (browser only) open the pill on a given page for screenshots.
   useEffect(() => {
     if (!demo) return;
     document.body.classList.add("demo");
-    if (demo !== "compact") setHoverNow(true);
-    const demoPage: Record<string, number> = { notifications: 0, music: 1, claude: 2 };
+    if (new URLSearchParams(window.location.search).get("capture") === "1") document.body.classList.add("capture");
+    if (demo !== "compact" && demo !== "discord-compact") setHoverNow(true);
+    const demoPage: Record<string, number> = { notifications: 0, music: 1, claude: 2, calendar: 3, "calendar-setup": 3 };
     if (demo in demoPage) setPager({ index: demoPage[demo], dir: 0 });
+    if (demo === "todos") setShowTodo(true);
+    if (demo === "discord" || demo === "discord-compact") setShowDC(true);
   }, []);
 
   // A touchpad swipe arrives as many small horizontal scroll events: add them
@@ -189,7 +199,7 @@ export default function App() {
   const swipe = useRef({ distance: 0, last: 0, lockedUntil: 0 });
   const onWheel = (e: React.WheelEvent) => {
     const horizontal = e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY);
-    if (horizontal && mode === "open" && !showDC) {
+    if (horizontal && mode === "open" && !showDC && !showTodo) {
       const s = swipe.current;
       const t = performance.now();
       if (t - s.last > 250) s.distance = 0;
@@ -204,7 +214,7 @@ export default function App() {
       return;
     }
     // Scrolling up and down nudges the volume, like a hardware knob.
-    if (!horizontal && volume && (mode !== "open" || page === "media")) {
+    if (!horizontal && volume && (mode !== "open" || (page === "media" && !showDC && !showTodo))) {
       nudge(e.deltaY < 0 ? 0.05 : -0.05);
     }
   };
@@ -213,9 +223,10 @@ export default function App() {
   const dragRef = useRef<{ startX: number; swiped: boolean } | null>(null);
   const onDragPointerDown = (e: React.PointerEvent) => {
     // Only act on the body area, not on interactive elements
-    if ((e.target as HTMLElement).closest("button, input, textarea, select, a, .ask__grip")) return;
-    if (mode !== "open" || showDC) return;
+    if ((e.target as HTMLElement).closest("button, input, textarea, select, a, label, summary, .ask__grip, [data-drag-handle]")) return;
+    if (mode !== "open" || showDC || showTodo) return;
     dragRef.current = { startX: e.clientX, swiped: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onDragPointerMove = (e: React.PointerEvent) => {
     const d = dragRef.current;
@@ -231,7 +242,7 @@ export default function App() {
   };
 
   return (
-    <div className="stage">
+    <div className={`stage ${expandUp ? "stage--up" : ""}`}>
       <motion.div
         ref={pillRef}
         layout
@@ -276,13 +287,20 @@ export default function App() {
                 battery={battery}
                 showDC={showDC}
                 inVoice={discord.inVoice}
-                onToggleDC={() => setShowDC((v) => !v)}
+                onToggleDC={() => { setShowTodo(false); if (showDC) setDiscordPinned(false); setShowDC((v) => !v); setTyping(false); }}
+                showTodo={showTodo}
+                todoCount={todos.remaining}
+                onToggleTodo={() => { setShowDC(false); setDiscordPinned(false); setShowTodo((v) => !v); setTyping(false); }}
               >
                 <Shortcuts shortcuts={shortcuts} onOpen={openShortcut} onEdit={editShortcuts} />
               </Header>
               {notifyError && <p className="hint">{notifyError}</p>}
               <AnimatePresence mode="popLayout" initial={false} custom={pager.dir}>
-                {showDC ? (
+                {showTodo ? (
+                  <motion.div key="todos" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} transition={{ duration: 0.22 }}>
+                    <TodoPanel todos={todos} onClose={() => setShowTodo(false)} />
+                  </motion.div>
+                ) : showDC ? (
                   <motion.div
                     key="discord"
                     initial={{ opacity: 0, y: 10 }}
@@ -290,7 +308,7 @@ export default function App() {
                     exit={{ opacity: 0, y: 10 }}
                     transition={{ duration: 0.22, ease: "easeOut" }}
                   >
-                    <DiscordVC discord={discord} />
+                    <DiscordVC discord={discord} pinned={discordPinned} onTogglePin={() => setDiscordPinned((p) => !p)} />
                   </motion.div>
                 ) : (
                   <motion.div
@@ -311,6 +329,8 @@ export default function App() {
                       />
                     ) : page === "claude" ? (
                       <ClaudePage ask={ask} onTyping={setTyping} />
+                    ) : page === "calendar" ? (
+                      <CalendarPage calendar={calendar} now={now} onTyping={setTyping} />
                     ) : media ? (
                       <Player media={media} onPlayPause={playPause} onNext={next} onPrevious={previous}>
                         {volume && (
@@ -328,13 +348,14 @@ export default function App() {
                   </motion.div>
                 )}
               </AnimatePresence>
-              {!showDC && (
+              {!showDC && !showTodo && (
                 <div className="dots">
                   {PAGES.map((p, i) => (
                     <button
                       key={p.id}
                       className={i === pager.index ? "dots__on" : ""}
-                      onClick={() => turn(i - pager.index)}
+                      onClick={() => { turn(i - pager.index); setTyping(false); }}
+                      aria-current={i === pager.index ? "page" : undefined}
                       title={p.label}
                       aria-label={p.label}
                     />
@@ -346,12 +367,15 @@ export default function App() {
             <motion.div
               key="compact"
               className="compact"
+              data-drag-handle
               initial={{ opacity: 0, filter: "blur(4px)" }}
               animate={{ opacity: 1, filter: "blur(0px)" }}
               exit={{ opacity: 0, filter: "blur(4px)" }}
               transition={{ duration: 0.18 }}
             >
-              <Compact media={media} now={now} battery={battery} />
+              {showDC && (discord.inVoice || demo === "discord" || demo === "discord-compact") ? (
+                <CompactDiscord users={(demo === "discord" || demo === "discord-compact") ? MOCK_DC_USERS : discord.users} channel={discord.channelName} />
+              ) : <Compact media={media} now={now} battery={battery} />}
             </motion.div>
           )}
         </AnimatePresence>
@@ -374,6 +398,19 @@ function Compact({ media, now, battery }: { media: MediaInfo | null; now: Date; 
       <span className="time">{formatClock(now)}</span>
       <Battery battery={battery} />
     </>
+  );
+}
+
+function CompactDiscord({ users, channel }: { users: DiscordUser[]; channel: string }) {
+  const visible = users.slice(0, 5);
+  return (
+    <div className="compact-dc" role="group" aria-label={`Discord ${channel}: ${users.length} anggota voice channel`}>
+      {visible.map((user) => <span key={user.id} className={`compact-dc__avatar ${user.isSpeaking ? "compact-dc__avatar--speaking" : ""}`} title={`${user.name}${user.isMuted ? " · mikrofon mati" : ""}${user.isSpeaking ? " · berbicara" : ""}`}>
+        {user.avatar ? <img src={user.avatar} alt={user.name} draggable={false} /> : <span aria-label={user.name}>{user.name.charAt(0).toUpperCase()}</span>}
+      </span>)}
+      {users.length > visible.length && <span className="compact-dc__more" title={`${users.length - visible.length} anggota lainnya`}>+{users.length - visible.length}</span>}
+      {users.length === 0 && <HeadphoneIcon aria-label="Menunggu anggota voice channel" />}
+    </div>
   );
 }
 
@@ -660,6 +697,9 @@ function Header({
   showDC,
   inVoice,
   onToggleDC,
+  showTodo,
+  todoCount,
+  onToggleTodo,
 }: {
   now: Date;
   battery: BatteryInfo | null;
@@ -667,9 +707,12 @@ function Header({
   showDC?: boolean;
   inVoice?: boolean;
   onToggleDC?: () => void;
+  showTodo?: boolean;
+  todoCount?: number;
+  onToggleTodo?: () => void;
 }) {
   return (
-    <div className="header">
+    <div className="header" data-drag-handle title="Drag bagian atas untuk memindahkan FloatingBar">
       <div className="header__clock">
         <span className="time time--big">{formatClock(now)}</span>
         <span className="date">
@@ -677,14 +720,24 @@ function Header({
         </span>
       </div>
       {children}
+      <div className="header__tools">
+      <button
+        className={`dc-toggle todo-toggle ${showTodo ? "todo-toggle--on" : ""}`}
+        onClick={onToggleTodo}
+        title={`To-do list${todoCount ? ` · ${todoCount} tugas tersisa` : ""}`}
+        aria-label={`To-do list${todoCount ? `, ${todoCount} tugas tersisa` : ""}`}
+        aria-expanded={showTodo}
+      ><CheckListIcon />{(todoCount ?? 0) > 0 && <span className="todo-toggle__badge">{todoCount! > 9 ? "9+" : todoCount}</span>}</button>
       <button
         className={`dc-toggle ${showDC ? "dc-toggle--on" : ""} ${inVoice ? "dc-toggle--active" : ""}`}
         onClick={onToggleDC}
         title={showDC ? "Tutup Discord VC" : inVoice ? "Buka Discord VC (Aktif)" : "Buka Discord VC"}
         aria-label={showDC ? "Tutup Discord VC" : "Buka Discord VC"}
+        aria-expanded={showDC}
       >
         <HeadphoneIcon />
       </button>
+      </div>
       <Battery battery={battery} showPercent />
     </div>
   );
@@ -841,12 +894,15 @@ function Battery({ battery, showPercent }: { battery: BatteryInfo | null; showPe
 // ---- Discord Voice Channel Panel ----
 const DC_VISIBLE = 5;
 
-function DiscordVC({ discord }: { discord: ReturnType<typeof useDiscord> }) {
+function DiscordVC({ discord, pinned, onTogglePin }: { discord: ReturnType<typeof useDiscord>; pinned: boolean; onTogglePin: () => void }) {
   const isReal = discord.inVoice;
   const users = isReal ? discord.users : (demo ? MOCK_DC_USERS : []);
   const [page, setPage] = useState(0);
 
   const totalPages = Math.max(1, Math.ceil(users.length / DC_VISIBLE));
+  useEffect(() => {
+    setPage((p) => Math.min(p, totalPages - 1));
+  }, [totalPages, discord.channelId]);
   const visible = users.slice(page * DC_VISIBLE, page * DC_VISIBLE + DC_VISIBLE);
 
   const setUserVolume = (id: string, vol: number) => {
@@ -865,10 +921,20 @@ function DiscordVC({ discord }: { discord: ReturnType<typeof useDiscord> }) {
       <div className="dc__header">
         <span className="dc__channel">
           <span className="dc__channel-icon">🔊</span>
-          {isReal ? discord.channelName : "Tidak terhubung VC"}
+          {isReal ? discord.channelName : discord.connected ? "Belum bergabung VC" : "Discord belum terhubung"}
         </span>
-        <span className="dc__count">{users.length} user</span>
+        <div className="dc__header-tools"><span className="dc__count">{users.length} user</span><button className={`dc__pin ${pinned ? "dc__pin--on" : ""}`} onClick={onTogglePin} aria-pressed={pinned} aria-label={pinned ? "Lepas pin panel Discord" : "Pin panel Discord"} title={pinned ? "Lepas pin · mengecil saat kursor keluar" : "Pin · pertahankan panel terbuka"}><PinIcon /></button></div>
       </div>
+
+      {discord.error && <p className="empty" role="alert">{discord.error}</p>}
+
+      {!discord.connected && <div className="dc__connection">
+        <p role="status">{discord.status || "Menunggu koneksi Discord desktop"}</p>
+        <button onClick={() => discord.reconnect(false)}>Sambungkan ulang</button>
+        <button onClick={() => discord.reconnect(true)}>Autentikasi ulang</button>
+      </div>}
+
+      <DiscordIntegrationSettings discord={discord} />
 
       <div className="dc__users">
         {totalPages > 1 && page > 0 && (
@@ -950,6 +1016,7 @@ function DiscordVC({ discord }: { discord: ReturnType<typeof useDiscord> }) {
       <div className="dc__self">
         <button
           className={`dc__btn ${discord.selfMuted ? "dc__btn--active" : ""}`}
+          disabled={!isReal}
           onClick={() => discord.setMute(!discord.selfMuted)}
           title={discord.selfMuted ? "Unmute" : "Mute"}
           aria-label={discord.selfMuted ? "Unmute" : "Mute"}
@@ -959,10 +1026,10 @@ function DiscordVC({ discord }: { discord: ReturnType<typeof useDiscord> }) {
         </button>
         <button
           className={`dc__btn ${discord.selfDeafened ? "dc__btn--active" : ""}`}
+          disabled={!isReal}
           onClick={() => {
             const nextDeaf = !discord.selfDeafened;
             discord.setDeaf(nextDeaf);
-            if (nextDeaf && !discord.selfMuted) discord.setMute(true);
           }}
           title={discord.selfDeafened ? "Undeafen" : "Deafen"}
           aria-label={discord.selfDeafened ? "Undeafen" : "Deafen"}
@@ -972,6 +1039,7 @@ function DiscordVC({ discord }: { discord: ReturnType<typeof useDiscord> }) {
         </button>
         <button
           className="dc__btn dc__btn--disconnect"
+          disabled={!isReal}
           onClick={() => discord.disconnect()}
           title="Disconnect dari Voice"
           aria-label="Disconnect dari Voice"
@@ -982,6 +1050,26 @@ function DiscordVC({ discord }: { discord: ReturnType<typeof useDiscord> }) {
       </div>
     </div>
   );
+}
+
+function DiscordIntegrationSettings({ discord }: { discord: ReturnType<typeof useDiscord> }) {
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [saving, setSaving] = useState(false);
+  return <details className="dc__settings" open={discord.needsConfig || undefined}>
+    <summary>Pengaturan integrasi Discord</summary>
+    <p>Gunakan kredensial aplikasi Discord milikmu. Disimpan terenkripsi di akun Windows ini, tidak disertakan dalam build.</p>
+    <form autoComplete="off" onSubmit={async (e) => {
+      e.preventDefault(); if (saving) return;
+      setSaving(true);
+      try { if (await discord.configure(clientId, clientSecret)) setClientSecret(""); }
+      finally { setSaving(false); }
+    }}>
+      <label>Client ID<input value={clientId} onChange={(e) => setClientId(e.target.value)} inputMode="numeric" maxLength={22} autoComplete="off" spellCheck={false} required /></label>
+      <label>Client secret<input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} maxLength={256} autoComplete="off" required /></label>
+      <button type="submit" disabled={saving || !clientId.trim() || !clientSecret.trim()}>{saving ? "Menyimpan…" : "Simpan dan hubungkan"}</button>
+    </form>
+  </details>;
 }
 
 function formatClock(d: Date) {

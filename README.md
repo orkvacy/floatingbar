@@ -1,24 +1,39 @@
 # FloatingBar
 
-**A Dynamic Island for Windows.** A small black pill floats at the top of your screen and expands when you hover it: now playing with media controls and per-app volume, incoming Windows notifications, app shortcuts, battery and clock — and a Claude panel that lets you chat with the Claude desktop app and answer its permission prompts without switching windows.
+**Answer Claude’s Yes/No prompts from a floating bar on Windows.** Review a permission request, then click **Izinkan** (allow) or **Tolak** (deny) without switching windows. FloatingBar also brings together Claude chat, Discord voice controls, to-dos, Google Calendar, music, and notifications.
 
 Built with Tauri 2 (Rust) and React + TypeScript.
 
 [Baca dalam Bahasa Indonesia](README.id.md)
 
 <p align="center">
-  <img src="docs/screenshots/music.png" alt="FloatingBar expanded, showing the music player" width="720">
+  <img src="docs/screenshots/permission.png" alt="Claude permission request with Deny and Allow buttons" width="720">
 </p>
 
-| Collapsed | Notification | Permission prompt |
-| :---: | :---: | :---: |
-| ![Collapsed pill while music plays](docs/screenshots/compact.png) | ![A WhatsApp notification on the pill](docs/screenshots/notification.png) | ![Claude asking for permission to run a command](docs/screenshots/permission.png) |
+**Main feature: review Claude’s command and answer Allow / Deny from the pill.**
 
-| Notifications page | Claude panel |
+| Claude | Discord voice |
 | :---: | :---: |
-| ![Notifications page with recent notifications](docs/screenshots/notifications.png) | ![Claude panel with a conversation](docs/screenshots/claude.png) |
+| ![Claude panel](docs/screenshots/claude.png) | ![Discord voice controls](docs/screenshots/discord.png) |
 
-<sub>Screenshots use the built-in demo mode with sample data.</sub>
+| To-do list | Google Calendar |
+| :---: | :---: |
+| ![Local to-do list](docs/screenshots/todos.png) | ![Today’s agenda](docs/screenshots/calendar.png) |
+
+<details>
+<summary>More previews</summary>
+
+| Music | Notifications |
+| :---: | :---: |
+| ![Music controls](docs/screenshots/music.png) | ![Notification history](docs/screenshots/notifications.png) |
+
+| Compact music | Compact Discord |
+| :---: | :---: |
+| ![Compact music pill](docs/screenshots/compact.png) | ![Compact voice avatars](docs/screenshots/discord-compact.png) |
+
+</details>
+
+<sub>All screenshots use fictional demos, with no personal chats, calendar events, profile photos, accounts, or credentials.</sub>
 
 > FloatingBar is an independent project. It is not affiliated with Apple or Anthropic. The interface text is currently in Indonesian.
 
@@ -30,6 +45,8 @@ Built with Tauri 2 (Rust) and React + TypeScript.
 - [Requirements](#requirements)
 - [Install](#install)
 - [Using FloatingBar](#using-floatingbar)
+- [Discord panel](#discord-panel)
+- [To-do list and Google Calendar](#to-do-list-and-google-calendar)
 - [Claude integration](#claude-integration)
 - [Optional: show notifications only in FloatingBar](#optional-show-notifications-only-in-floatingbar)
 - [Configuration and data files](#configuration-and-data-files)
@@ -44,6 +61,9 @@ Built with Tauri 2 (Rust) and React + TypeScript.
 
 ## Features
 
+- **Claude Yes/No approvals**: answer **Allow / Deny** for Claude desktop prompts and Claude Code hooks.
+- **Discord voice**: members, speaking indicators, mute/deafen, per-member volume, compact avatars, and pin.
+- **Daily planning**: local to-dos and today’s events from selected Google calendars, including shared calendars.
 - **Floating pill** at the top center of the screen that expands on hover, with spring animations. Drag it anywhere; it remembers where you left it.
 - **Click-through**: the empty area around the pill never blocks the apps underneath.
 - **Now playing** from any app that reports to Windows media controls (Spotify, YouTube in a browser, media players): artwork, title, artist, progress, play/pause/next/previous.
@@ -52,7 +72,6 @@ Built with Tauri 2 (Rust) and React + TypeScript.
 - **Shortcuts**: one-click launchers for websites, apps or programs, configured in a JSON file.
 - **Battery and clock** at a glance.
 - **Claude panel**: pick Chat or Code mode and a conversation in the Claude desktop app, read its recent messages, send prompts (with a pasted image) and follow the reply — all from the pill.
-- **Permission prompts**: answer Claude's "Allow / Deny" prompts from the pill, both in Claude Code and in the Claude desktop app.
 - **Tray icon** with show/hide, reset position, autostart and quit. Only one instance runs at a time.
 
 ## Requirements
@@ -80,21 +99,22 @@ After installing:
 | Action | What it does |
 | --- | --- |
 | Hover the pill | Expands it. It shrinks again shortly after the cursor leaves. |
-| Drag the pill | Moves it. The position is saved. |
-| Double-click the pill | Moves it back to the top center of the screen. |
+| Drag the top header (or the compact pill) | Moves the window. Its position is saved. Dragging page content changes slides instead. |
+| Double-click the header | Moves it back to the top center of the screen. |
 | Scroll up/down over the pill | Changes the volume of the playing app (on the Music page or while collapsed). |
-| Two-finger swipe on a touchpad, or Shift + scroll | Switches pages. |
+| Hold the left mouse button and drag page content horizontally; or use touchpad swipe / Shift + scroll | Switches pages without moving the bar. |
 | Click the dots under a page | Jumps to that page. |
 
 While collapsed, the pill shows the album art and a small equalizer when something is playing, or the clock and battery otherwise. It opens by itself for a few seconds when you plug in the charger.
 
 ### Pages
 
-The expanded pill has three pages, left to right:
+The expanded pill has four pages, left to right:
 
 1. **Notifications** — the last 20 notifications with app icon and time. Click one to remove it, or *Hapus semua* to clear them. The list lives in memory only and is empty again after a restart.
 2. **Music** — artwork, title, artist, progress bar, previous/play-pause/next, and a volume slider with mute. This is the page shown first.
 3. **Claude** — see [Claude integration](#claude-integration).
+4. **Agenda** — today’s events from selected Google calendars (optional sign-in).
 
 The header on every page shows the clock, date, your shortcuts and the battery level.
 
@@ -125,6 +145,34 @@ The tray icon may be hidden behind the **^** arrow in the taskbar; drag it out t
   - *Keluar* — quit
 
 Launching FloatingBar again while it runs just brings the pill back.
+
+Near the bottom of a monitor, the pill expands upward. Its window is constrained to the monitor’s work area, including the taskbar boundary; long panels scroll when space is limited.
+
+## Discord panel
+
+Open Discord desktop, then the headset panel in FloatingBar. Under **Pengaturan integrasi Discord**, enter your own application’s Client ID and Client Secret from Discord Developer Portal, save, and authorize in Discord. Voice RPC depends on Discord application access; restricted applications may require your account to be registered as a tester. New source and installers contain no bundled Discord credentials. Credentials and tokens are stored on this device using Windows DPAPI encryption. Use these settings again after rotating your secret.
+
+With the Discord panel selected and voice active, leaving the pill collapses it to member avatars. Hover to expand again. The **pin** button at the panel’s top right keeps it expanded; toggle it off to restore automatic collapse. Compact mode shows up to five avatars plus an overflow count, with a green ring for speaking members.
+
+Per-member volume sliders stay within their rows, including when pagination arrows are visible.
+
+## To-do list and Google Calendar
+
+The checklist icon to the left of Discord opens a local to-do list: add, edit, complete, delete, or clear completed tasks. Tasks persist in this device’s WebView storage. Close the panel with its icon or × button.
+
+Page four, **Agenda**, shows today’s events from **selected Google calendars**, including shared/subscribed calendars, all-day and recurring events, times, locations, and links. Dates and times follow the computer’s timezone. Events refresh on opening the active page and every minute while active. Open **Pilih kalender** to select sources locally; initial selection follows Google Calendar. Each event names its source. A separate account merely signed in to your browser is not automatically accessible: share or subscribe to its calendar from the connected account, or use **Hubungkan ulang / ganti akun** to replace the connected account. Manual refresh and disconnect controls are included. Same-day results remain visible with an error message if a refresh fails.
+
+One-time setup:
+
+1. Enable **Google Calendar API** in a project in [Google Cloud Console](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com).
+2. Configure the OAuth consent screen; add your email as a **test user** if the app is in Testing.
+3. Create an OAuth client of type **Desktop app** and download its credentials JSON.
+4. In FloatingBar, open **Agenda → Hubungkan Google Calendar** and select the JSON file (or paste it).
+5. Complete sign-in in your default browser and grant calendar read access. Never commit the downloaded credentials file.
+
+The app uses OAuth Authorization Code + PKCE, a local loopback callback, and only the read scopes `calendar.events.readonly` and `calendar.calendarlist.readonly`. Existing users can click **Perbarui izin Google** to authorize calendar-list access without importing their JSON again. Cancelling reauthorization preserves the old connection. Tokens and client credentials are encrypted with Windows DPAPI in `%APPDATA%\id.orkvacy.floatingbar\google-calendar.dat`. Tokens never enter the frontend. **Kelola koneksi → Putuskan koneksi** removes the local token; **Kelola izin di Google** opens Google’s access management page for full revocation. Testing-mode tokens may require reauthorization.
+
+Account integration is desktop-only. Browser previews support `?demo=calendar` with clearly separate sample events and `?demo=todos` for the task panel.
 
 ## Claude integration
 
@@ -222,6 +270,9 @@ FloatingBar stores its files in `%APPDATA%\id.orkvacy.floatingbar\`:
 | --- | --- |
 | `shortcuts.json` | Header shortcuts. Created with defaults on first use. |
 | `position.json` | Where you dragged the pill. Delete it to reset. |
+| `discord-client.dat` | Discord Client ID/secret, encrypted with DPAPI. |
+| `discord-token.dat` | Discord token, encrypted with DPAPI. |
+| `google-calendar.dat` | Google credentials and tokens, encrypted with DPAPI. |
 | `quiet-notifications-backup.json` | Created only by the optional script, used by `-Undo`. |
 
 The Claude panel height is kept in the app's WebView storage under `%LOCALAPPDATA%\id.orkvacy.floatingbar\`.
@@ -247,7 +298,9 @@ If the file contains invalid JSON, the defaults are shown until it's fixed.
 
 ## Privacy and security
 
-- **Everything stays on your computer.** FloatingBar has no telemetry and no account, and sends your notifications, media info or Claude conversations nowhere.
+- **Discord**: voice uses local Discord IPC; OAuth token exchange contacts Discord over HTTPS. Legacy plaintext tokens are migrated after encrypted storage succeeds.
+- **WebView storage**: to-dos, selected calendars, and Claude panel height remain local. DPAPI files can only be decrypted by the same Windows account.
+- **Local data stays on your computer.** FloatingBar has no telemetry and sends your notifications, media info or Claude conversations nowhere. The optional calendar integration contacts Google after you connect your Google account.
 - **Network requests**: shortcut icons for websites are loaded from Google's favicon service (`https://www.google.com/s2/favicons?domain=…`), which tells Google which domains are in your shortcuts. Set an `icon` for a shortcut to avoid this.
 - **Notifications** are read from the Windows notification center while FloatingBar runs and kept in memory only; nothing is written to disk.
 - **Claude app**: FloatingBar reads the Claude window's accessibility tree locally — button labels about every 1.5 seconds to spot permission prompts, and conversation text while you use the Claude panel. Sending a prompt with an image briefly focuses the Claude window and uses your clipboard.
@@ -265,6 +318,12 @@ If the file contains invalid JSON, the defaults are shown until it's fixed.
 - The interface is in Indonesian.
 
 ## Troubleshooting
+
+**Discord is disconnected while I am in voice.**
+Keep Discord desktop running, configure the integration in the headset panel, then reconnect. After rotating credentials, save the new secret and authorize again. Your Discord application still needs RPC access.
+
+**Another account’s calendar is missing.**
+Share/subscribe to that calendar from the connected account, update Google permissions if prompted, then select it under **Pilih kalender**. Signing in to another browser account alone does not grant this app access.
 
 **Notifications don't appear on the pill.**
 Make sure notification access is allowed (see [Install](#install)); the expanded pill shows an orange hint when it isn't. Notifications must be enabled in Windows Settings — only the banners may be off.
@@ -332,10 +391,17 @@ Only one FloatingBar runs at a time, so quit an installed copy before running th
 ```
 src/                     React interface
   App.tsx                pill, pages and cards
+  lib/calendar.ts        Google Calendar state and sample agenda
+  lib/discord.ts         Discord voice state and fictional demo members
+  lib/todos.ts           local task storage
   lib/native.ts          hooks that talk to the Rust side (and sample data in a browser)
   icons.tsx, styles.css
 src-tauri/src/           Rust backend
   lib.rs                 window setup, click-through hover, saved position, commands
+  calendar.rs            Google OAuth PKCE and selected-calendar agenda
+  discord.rs             Discord IPC, OAuth, reconnect and voice controls
+  placement.rs           work-area bounds and expansion direction
+  secure_store.rs        Windows DPAPI encrypted storage
   media.rs               now playing via Global System Media Transport Controls
   audio.rs               per-app volume via Core Audio sessions
   battery.rs             battery via GetSystemPowerStatus
@@ -361,12 +427,14 @@ scripts/
 Issues and pull requests are welcome.
 
 1. Fork and clone the repository, then follow [Build from source](#build-from-source).
-2. Use `bun run dev` for interface work: it runs in a normal browser with sample data. Try `mockNotify()` and `mockPermission()` in the browser console, or open a demo state directly with `?demo=` and one of `compact`, `music`, `notifications`, `notification`, `permission` or `claude` (for example `http://localhost:1420/?demo=claude`).
+2. Use `bun run dev` for interface work: it runs in a normal browser with sample data. Try `mockNotify()` and `mockPermission()` in the browser console, or open a demo state directly with `?demo=` and one of `compact`, `music`, `notifications`, `notification`, `permission`, `claude`, `todos`, `calendar`, `calendar-setup`, `discord` or `discord-compact` (for example `http://localhost:1420/?demo=claude`).
    To refresh the README screenshots, keep the dev server running and run `powershell -ExecutionPolicy Bypass -File scripts\capture-screenshots.ps1`; it saves them to `docs/screenshots` using headless Edge.
 3. Before opening a pull request, make sure `bun run build` (type check + build) and `cargo build --manifest-path src-tauri/Cargo.toml` pass.
 4. Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/), for example `feat(media): …` or `fix(notifications): …`.
 
 If the Claude app changes its interface, the labels FloatingBar looks for are collected at the top of `src-tauri/src/claude_app.rs` and in `src-tauri/src/ui_permission.rs`.
+
+Maintainers: see the [release and pre-push checklist](docs/RELEASING.md) and prepared [v0.2.0 release notes](docs/releases/v0.2.0.md).
 
 ## License
 

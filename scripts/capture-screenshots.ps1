@@ -19,13 +19,13 @@ $edge = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
 $profileDir = Join-Path $env:TEMP "floatingbar-shots-profile"
 
 # name = demo state, height of the shot in CSS px
-$shots = [ordered]@{ compact = 90; music = 240; notifications = 260; notification = 130; permission = 180; claude = 410 }
+$shots = [ordered]@{ permission = 240; claude = 480; discord = 540; 'discord-compact' = 100; todos = 460; calendar = 680; compact = 100; music = 300; notifications = 340; notification = 180 }
 # Edge reports "bytes written" on stderr, which Windows PowerShell treats as an error.
 $ErrorActionPreference = "Continue"
 foreach ($name in $shots.Keys) {
   $file = Join-Path $out "$name.png"
   & $edge --headless=new --disable-gpu --hide-scrollbars --no-first-run --user-data-dir="$profileDir" `
     --force-device-scale-factor=2 --window-size="720,$($shots[$name])" --virtual-time-budget=5000 `
-    --screenshot="$file" "$($Url)?demo=$name" 2>$null | Out-Null
+    --screenshot="$file" "$($Url)?demo=$name&capture=1" 2>$null | Out-Null
   Write-Host ("{0,-14} {1}" -f $name, $(if (Test-Path $file) { "ok" } else { "FAILED" }))
 }

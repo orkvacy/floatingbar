@@ -1,11 +1,14 @@
 mod ask;
 mod audio;
 mod battery;
+mod calendar;
 mod claude_app;
 mod discord;
 mod media;
 mod notify;
 mod permission;
+mod placement;
+mod secure_store;
 mod shortcuts;
 mod tray;
 mod ui_permission;
@@ -17,10 +20,12 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewWindow, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State, WebviewWindow, WindowEvent};
 use windows::Win32::Foundation::POINT;
+use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
 use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
 /// Interactive area of the pill, in CSS px relative to the window.
@@ -36,6 +41,10 @@ struct HitRect {
 struct SavedPosition {
     x: i32,
     y: i32,
+    #[serde(default)]
+    expand_up: bool,
+    #[serde(default)]
+    anchor: Option<(i32, i32)>,
 }
 
 #[derive(Default)]
@@ -47,6 +56,8 @@ struct AppState {
     notify_error: Mutex<Option<String>>,
     /// Latest window position, written to disk by the saver thread.
     position: Mutex<Option<SavedPosition>>,
+    expand_up: AtomicBool,
+    drag_active: AtomicBool,
 }
 
 #[tauri::command]
@@ -72,6 +83,46 @@ fn set_hit_region(state: State<AppState>, rect: HitRect) {
 #[tauri::command]
 fn reset_position(window: WebviewWindow) -> Result<(), String> {
     center_window(&window).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_window_anchor(state: State<AppState>) -> bool {
+    state.expand_up.load(Ordering::Relaxed)
+}
+
+#[tauri::command]
+async fn drag_window_header(window: WebviewWindow, grab_x: f64, grab_y: f64, header_x: f64, header_y: f64) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if ![grab_x, grab_y, header_x, header_y].iter().all(|v| v.is_finite()) {
+            return Err("Koordinat drag tidak valid".into());
+        }
+        let state = window.state::<AppState>();
+        if state.drag_active.swap(true, Ordering::Relaxed) { return Ok(()); }
+        let result = (|| {
+            let scale = window.scale_factor().map_err(|e| e.to_string())?;
+            let grab = (grab_x, grab_y);
+            let header = (header_x, header_y);
+            let deadline = std::time::Instant::now() + Duration::from_secs(120);
+            let mut previous = None;
+            while unsafe { GetAsyncKeyState(VK_LBUTTON.0 as i32) } < 0 {
+                if std::time::Instant::now() >= deadline { break; }
+                let mut cursor = POINT::default();
+                unsafe { GetCursorPos(&mut cursor) }.map_err(|e| e.to_string())?;
+                let origin = placement::drag_origin((cursor.x, cursor.y), grab, scale);
+                if previous != Some(origin) {
+                    window.set_position(PhysicalPosition::new(origin.0, origin.1)).map_err(|e| e.to_string())?;
+                    previous = Some(origin);
+                }
+                thread::sleep(Duration::from_millis(16));
+            }
+            let mut cursor = POINT::default();
+            unsafe { GetCursorPos(&mut cursor) }.map_err(|e| e.to_string())?;
+            let anchor = placement::drop_anchor((cursor.x, cursor.y), grab, header, scale);
+            place_window(&window, anchor).map_err(|e| e.to_string())
+        })();
+        state.drag_active.store(false, Ordering::Relaxed);
+        result
+    }).await.map_err(|e| e.to_string())?
 }
 
 // Async so waiting on the Claude app never blocks the UI thread.
@@ -167,9 +218,28 @@ fn media_previous() -> Result<(), String> {
 pub(crate) fn center_window(window: &WebviewWindow) -> tauri::Result<()> {
     let monitor = window.current_monitor()?.or(window.primary_monitor()?);
     if let Some(m) = monitor {
-        let size = window.outer_size()?;
-        let x = m.position().x + (m.size().width as i32 - size.width as i32) / 2;
-        window.set_position(PhysicalPosition::new(x, m.position().y))?;
+        let work = m.work_area();
+        place_window(window, (work.position.x as f64 + work.size.width as f64 / 2.0,
+            work.position.y as f64 + 23.0 * m.scale_factor()))?;
+    }
+    Ok(())
+}
+
+fn place_window(window: &WebviewWindow, anchor: (f64, f64)) -> tauri::Result<()> {
+    let monitor = window.monitor_from_point(anchor.0, anchor.1)?.or(window.current_monitor()?).or(window.primary_monitor()?);
+    if let Some(monitor) = monitor {
+        let work = monitor.work_area();
+        let next = placement::calculate(anchor, placement::WorkArea {
+            x: work.position.x, y: work.position.y, width: work.size.width, height: work.size.height,
+        }, monitor.scale_factor());
+        window.state::<AppState>().expand_up.store(next.expand_up, Ordering::Relaxed);
+        window.set_position(PhysicalPosition::new(next.x, next.y))?;
+        window.set_size(PhysicalSize::new(next.width, next.height))?;
+        let center = placement::compact_center((next.x, next.y), (next.width, next.height), next.expand_up, monitor.scale_factor());
+        *window.state::<AppState>().position.lock().unwrap() = Some(SavedPosition {
+            x: next.x, y: next.y, expand_up: next.expand_up, anchor: Some((center.0.round() as i32, center.1.round() as i32)),
+        });
+        let _ = window.emit("window-anchor", next.expand_up);
     }
     Ok(())
 }
@@ -186,14 +256,15 @@ fn restore_position(app: &AppHandle, window: &WebviewWindow) -> tauri::Result<()
         .and_then(|s| serde_json::from_str(&s).ok());
     if let Some(pos) = saved {
         let size = window.outer_size()?;
-        let anchor = (pos.x + size.width as i32 / 2, pos.y + 20);
+        let scale = window.scale_factor()?;
+        let anchor = pos.anchor.unwrap_or((pos.x + size.width as i32 / 2, pos.y + (23.0 * scale).round() as i32));
         let visible = window.available_monitors()?.iter().any(|m| {
             let (mx, my) = (m.position().x, m.position().y);
             let (mw, mh) = (m.size().width as i32, m.size().height as i32);
             anchor.0 >= mx && anchor.0 < mx + mw && anchor.1 >= my && anchor.1 < my + mh
         });
         if visible {
-            return window.set_position(PhysicalPosition::new(pos.x, pos.y));
+            return place_window(window, (anchor.0 as f64, anchor.1 as f64));
         }
     }
     center_window(window)
@@ -354,12 +425,15 @@ pub fn run() {
         .manage(AppState::default())
         .manage(permission::Pending::default())
         .manage(discord::DiscordManager::default())
+        .manage(calendar::CalendarManager::default())
         .invoke_handler(tauri::generate_handler![
             get_media,
             get_battery,
             get_notify_error,
             set_hit_region,
             reset_position,
+            get_window_anchor,
+            drag_window_header,
             answer_permission,
             open_in_claude,
             claude_chats,
@@ -380,12 +454,25 @@ pub fn run() {
             discord::discord_set_deaf,
             discord::discord_set_user_volume,
             discord::discord_toggle_user_mute,
-            discord::discord_disconnect
+            discord::discord_disconnect,
+            discord::discord_reconnect,
+            discord::discord_configure,
+            calendar::calendar_status,
+            calendar::calendar_connect,
+            calendar::calendar_cancel,
+            calendar::calendar_events,
+            calendar::calendar_disconnect,
+            calendar::calendar_open
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::Moved(pos) = event {
+                let up = window.state::<AppState>().expand_up.load(Ordering::Relaxed);
+                let anchor = window.outer_size().ok().zip(window.scale_factor().ok()).map(|(size, scale)| {
+                    let center = placement::compact_center((pos.x, pos.y), (size.width, size.height), up, scale);
+                    (center.0.round() as i32, center.1.round() as i32)
+                });
                 *window.state::<AppState>().position.lock().unwrap() =
-                    Some(SavedPosition { x: pos.x, y: pos.y });
+                    Some(SavedPosition { x: pos.x, y: pos.y, expand_up: up, anchor });
             }
         })
         .setup(|app| {

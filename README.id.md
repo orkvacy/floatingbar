@@ -1,24 +1,39 @@
 # FloatingBar
 
-**Dynamic Island untuk Windows.** Sebuah pill hitam kecil mengambang di atas layar dan membesar saat di-hover: lagu yang sedang diputar lengkap dengan kontrol dan volume per aplikasi, notifikasi Windows yang masuk, shortcut aplikasi, baterai dan jam, serta panel Claude untuk mengobrol dengan aplikasi Claude desktop dan menjawab permintaan izinnya tanpa berpindah jendela.
+**Jawab Yes/No Claude langsung dari floating bar Windows.** Tinjau permintaan izin, lalu klik **Izinkan** atau **Tolak** tanpa berpindah jendela. FloatingBar juga menyediakan panel Claude, kontrol voice Discord, to-do list, agenda Google Calendar, musik, dan notifikasi.
 
 Dibangun dengan Tauri 2 (Rust) dan React + TypeScript.
 
 [Read in English](README.md)
 
 <p align="center">
-  <img src="docs/screenshots/music.png" alt="FloatingBar yang membesar, menampilkan pemutar musik" width="720">
+  <img src="docs/screenshots/permission.png" alt="Claude permission request with Deny and Allow buttons" width="720">
 </p>
 
-| Pill kecil | Notifikasi | Permintaan izin |
-| :---: | :---: | :---: |
-| ![Pill kecil saat musik diputar](docs/screenshots/compact.png) | ![Notifikasi WhatsApp di pill](docs/screenshots/notification.png) | ![Claude meminta izin menjalankan perintah](docs/screenshots/permission.png) |
+**Fitur utama: tinjau perintah Claude, lalu jawab Izinkan / Tolak dari pill.**
 
-| Halaman Notifikasi | Panel Claude |
+| Claude | Discord voice |
 | :---: | :---: |
-| ![Halaman notifikasi dengan notifikasi terbaru](docs/screenshots/notifications.png) | ![Panel Claude dengan sebuah percakapan](docs/screenshots/claude.png) |
+| ![Claude panel](docs/screenshots/claude.png) | ![Discord voice controls](docs/screenshots/discord.png) |
 
-<sub>Screenshot memakai mode demo bawaan dengan data contoh.</sub>
+| To-do list | Google Calendar |
+| :---: | :---: |
+| ![Local to-do list](docs/screenshots/todos.png) | ![Today’s agenda](docs/screenshots/calendar.png) |
+
+<details>
+<summary>Pratinjau lainnya</summary>
+
+| Music | Notifications |
+| :---: | :---: |
+| ![Music controls](docs/screenshots/music.png) | ![Notification history](docs/screenshots/notifications.png) |
+
+| Compact music | Compact Discord |
+| :---: | :---: |
+| ![Compact music pill](docs/screenshots/compact.png) | ![Compact voice avatars](docs/screenshots/discord-compact.png) |
+
+</details>
+
+<sub>Semua screenshot memakai demo fiktif: tanpa chat, agenda, foto profil, akun, atau kredensial pribadi.</sub>
 
 > FloatingBar adalah proyek independen, tidak berafiliasi dengan Apple maupun Anthropic. Teks antarmukanya saat ini berbahasa Indonesia.
 
@@ -30,6 +45,8 @@ Dibangun dengan Tauri 2 (Rust) dan React + TypeScript.
 - [Kebutuhan](#kebutuhan)
 - [Instalasi](#instalasi)
 - [Memakai FloatingBar](#memakai-floatingbar)
+- [Panel Discord](#panel-discord)
+- [To-do list dan Google Calendar](#to-do-list-dan-google-calendar)
 - [Integrasi Claude](#integrasi-claude)
 - [Opsional: notifikasi hanya di FloatingBar](#opsional-notifikasi-hanya-di-floatingbar)
 - [Konfigurasi dan file data](#konfigurasi-dan-file-data)
@@ -44,6 +61,9 @@ Dibangun dengan Tauri 2 (Rust) dan React + TypeScript.
 
 ## Fitur
 
+- **Izin Claude Yes/No**: jawab **Izinkan / Tolak** untuk prompt Claude desktop dan hook Claude Code.
+- **Discord voice**: anggota, indikator bicara, mute/deafen, volume per anggota, avatar ringkas, dan pin.
+- **Agenda dan tugas**: to-do lokal dan acara hari ini dari kalender Google pilihan, termasuk kalender bersama.
 - **Pill mengambang** di tengah atas layar yang membesar saat di-hover, dengan animasi pegas. Bisa digeser ke mana saja dan posisinya diingat.
 - **Tembus klik**: area kosong di sekitar pill tidak menghalangi aplikasi di bawahnya.
 - **Lagu yang diputar** dari aplikasi apa pun yang terhubung ke kontrol media Windows (Spotify, YouTube di browser, pemutar media): cover, judul, artis, progres, putar/jeda/berikutnya/sebelumnya.
@@ -52,7 +72,6 @@ Dibangun dengan Tauri 2 (Rust) dan React + TypeScript.
 - **Shortcut**: pintasan sekali klik ke situs, aplikasi, atau program, diatur lewat file JSON.
 - **Baterai dan jam** sekilas pandang.
 - **Panel Claude**: pilih mode Chat atau Code dan percakapan di aplikasi Claude desktop, baca pesan-pesan terakhirnya, kirim prompt (bisa dengan gambar yang ditempel), lalu ikuti balasannya, semuanya dari pill.
-- **Permintaan izin**: jawab prompt "Allow / Deny" Claude dari pill, baik di Claude Code maupun di aplikasi Claude desktop.
 - **Ikon tray** untuk menampilkan/menyembunyikan, mengembalikan posisi, autostart, dan keluar. Hanya satu instance yang berjalan dalam satu waktu.
 
 ## Kebutuhan
@@ -80,21 +99,22 @@ Setelah terpasang:
 | Aksi | Hasil |
 | --- | --- |
 | Hover pill | Membesarkan pill. Pill mengecil lagi sesaat setelah kursor keluar. |
-| Tarik pill | Memindahkannya. Posisinya disimpan. |
-| Klik dua kali pill | Mengembalikannya ke tengah atas layar. |
+| Tarik header atas (atau pill ringkas) | Memindahkan jendela dan menyimpan posisi. Drag isi halaman untuk berpindah slide. |
+| Klik dua kali header | Mengembalikannya ke tengah atas layar. |
 | Scroll atas/bawah di atas pill | Mengatur volume aplikasi yang sedang memutar lagu (di halaman Musik atau saat pill kecil). |
-| Geser dua jari di touchpad, atau Shift + scroll | Berpindah halaman. |
+| Klik kiri tahan lalu tarik isi halaman ke kiri/kanan; atau swipe touchpad / Shift + scroll | Berpindah slide tanpa memindahkan bar. |
 | Klik titik di bawah halaman | Langsung ke halaman itu. |
 
 Saat kecil, pill menampilkan cover album dan equalizer kecil kalau ada lagu yang diputar, atau jam dan baterai kalau tidak ada. Pill terbuka sendiri beberapa detik saat charger dicolok.
 
 ### Halaman
 
-Pill yang membesar punya tiga halaman, dari kiri ke kanan:
+Pill yang membesar punya empat halaman, dari kiri ke kanan:
 
 1. **Notifikasi**: 20 notifikasi terakhir lengkap dengan ikon aplikasi dan waktunya. Klik salah satu untuk menghapusnya, atau *Hapus semua*. Daftar ini hanya disimpan di memori dan kosong lagi setelah aplikasi dibuka ulang.
 2. **Musik**: cover, judul, artis, progres, tombol sebelumnya/putar-jeda/berikutnya, serta slider volume dengan tombol mute. Halaman ini yang tampil pertama.
 3. **Claude**: lihat [Integrasi Claude](#integrasi-claude).
+4. **Agenda**: acara hari ini dari kalender Google yang dipilih (login opsional).
 
 Header di setiap halaman menampilkan jam, tanggal, shortcut-mu, dan persentase baterai.
 
@@ -125,6 +145,34 @@ Ikon tray mungkin tersembunyi di balik panah **^** di taskbar; seret keluar supa
   - *Keluar*
 
 Membuka FloatingBar lagi saat sudah berjalan hanya memunculkan pill kembali.
+
+Saat diletakkan dekat bagian bawah monitor, pill membesar ke atas. Jendela dibatasi area kerja monitor agar tidak melewati tepi layar atau taskbar; panel panjang bisa di-scroll jika ruang terbatas.
+
+## Panel Discord
+
+Buka Discord desktop, lalu panel headset di FloatingBar. Pada **Pengaturan integrasi Discord**, masukkan Client ID dan Client Secret aplikasi milik Anda dari Discord Developer Portal, simpan, lalu setujui otorisasi Discord. Akses RPC voice bergantung pada izin aplikasi Discord; jika akses dibatasi, akun Anda mungkin perlu terdaftar sebagai tester. Tidak ada kredensial Discord yang disertakan dalam source atau installer baru. Kredensial dan token disimpan terenkripsi Windows DPAPI pada perangkat ini. Gunakan pengaturan yang sama untuk mengganti secret setelah rotasi.
+
+Saat panel Discord dipilih dan voice aktif, kursor yang meninggalkan pill akan mengecilkannya menjadi deretan avatar anggota. Hover pill untuk membuka panel kembali. Tombol **pin** di kanan atas panel mempertahankan panel terbuka; klik lagi untuk kembali mengecil otomatis. Maksimal lima avatar ditampilkan dalam mode ringkas, diikuti jumlah anggota lainnya; lingkaran hijau menandai yang sedang berbicara.
+
+Volume setiap anggota dibatasi ke lebar baris agar tidak keluar dari pill, termasuk ketika panah pagination tampil.
+
+## To-do list dan Google Calendar
+
+Klik ikon daftar tugas di sebelah kiri headset Discord untuk menambah, mengedit, mencentang, atau menghapus tugas. Daftar tersimpan di penyimpanan WebView perangkat ini dan tetap tersedia setelah aplikasi ditutup. Panel tetap terbuka sampai ditutup lewat ikon atau tombol ×.
+
+Halaman keempat, **Agenda**, menampilkan acara hari ini dari **kalender Google yang dipilih**, termasuk kalender kelas dan kalender yang dibagikan dari akun lain: jam mulai/selesai, acara seharian, lokasi, tautan acara, dan penanda sedang berlangsung. Acara berulang diperluas oleh Google Calendar. Buka **Pilih kalender** untuk mencentang sumber agenda; pilihan awal mengikuti kalender yang ditampilkan di Google Calendar. Setiap acara menampilkan nama kalender asalnya. Akun lain yang hanya login terpisah di browser tidak otomatis terhubung: bagikan atau tambahkan kalendernya ke akun yang dihubungkan ke FloatingBar, atau gunakan **Hubungkan ulang / ganti akun** (mengganti akun aktif). Pilihan sumber hanya berlaku di FloatingBar. Hari dan jam mengikuti zona waktu komputer. Agenda diperbarui saat halaman aktif dibuka dan setiap satu menit selama halaman tersebut aktif; tombol perbarui tersedia untuk sinkronisasi manual. Jika koneksi gagal, agenda terakhir pada hari yang sama tetap terlihat dengan pesan error.
+
+Setup satu kali:
+
+1. Di [Google Cloud Console](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com), pilih/buat project dan aktifkan **Google Calendar API**.
+2. Atur Google Auth Platform / OAuth consent screen. Untuk aplikasi dalam status **Testing**, masukkan email Google yang akan dipakai sebagai **test user**.
+3. Buat OAuth client bertipe **Desktop app** melalui Google Auth Platform → Clients, lalu unduh JSON kredensialnya.
+4. Di FloatingBar, buka halaman **Agenda** → **Hubungkan Google Calendar** → pilih JSON tersebut (atau tempel isinya).
+5. Lanjutkan login di browser default dan berikan izin baca kalender. Jangan commit file kredensial ke repository.
+
+FloatingBar memakai OAuth Authorization Code + PKCE dengan callback loopback lokal dan hanya meminta scope baca `calendar.events.readonly` dan `calendar.calendarlist.readonly`. Pengguna versi lama cukup menekan **Perbarui izin Google** dan menyetujui tambahan izin baca daftar kalender; file JSON tidak perlu dipilih lagi. Jika login ulang dibatalkan, koneksi lama tetap tersimpan. Kredensial dan token disimpan terenkripsi dengan Windows DPAPI di `%APPDATA%\id.orkvacy.floatingbar\google-calendar.dat`; token tidak dikirim ke frontend atau disimpan dalam source. **Kelola koneksi → Putuskan koneksi** menghapus token lokal. Untuk mencabut akses Google sepenuhnya, gunakan **Kelola izin di Google**. Google dapat meminta login ulang ketika izin dicabut atau token aplikasi Testing berakhir.
+
+Integrasi akun hanya berjalan pada aplikasi desktop. Pratinjau `bun run dev` dapat menggunakan `?demo=calendar` untuk agenda contoh dan `?demo=todos` untuk panel tugas. Contoh agenda bukan data dari akun Google.
 
 ## Integrasi Claude
 
@@ -222,6 +270,9 @@ FloatingBar menyimpan file-filenya di `%APPDATA%\id.orkvacy.floatingbar\`:
 | --- | --- |
 | `shortcuts.json` | Shortcut di header. Dibuat dengan isi default saat pertama dipakai. |
 | `position.json` | Posisi terakhir pill. Hapus untuk mengembalikan ke tengah. |
+| `discord-client.dat` | Client ID/secret Discord, terenkripsi DPAPI. |
+| `discord-token.dat` | Token Discord, terenkripsi DPAPI. |
+| `google-calendar.dat` | Kredensial dan token Google, terenkripsi DPAPI. |
 | `quiet-notifications-backup.json` | Hanya dibuat oleh skrip opsional, dipakai oleh `-Undo`. |
 
 Tinggi panel Claude disimpan di penyimpanan WebView aplikasi di `%LOCALAPPDATA%\id.orkvacy.floatingbar\`.
@@ -247,7 +298,9 @@ Kalau isi file bukan JSON yang valid, daftar default yang ditampilkan sampai fil
 
 ## Privasi dan keamanan
 
-- **Semuanya tetap di komputermu.** FloatingBar tidak punya telemetri maupun akun, dan tidak mengirim notifikasi, info media, atau percakapan Claude-mu ke mana pun.
+- **Discord**: komunikasi voice memakai IPC Discord lokal; pertukaran token OAuth menghubungi Discord melalui HTTPS. Token lama plaintext dimigrasikan ke format terenkripsi setelah berhasil disimpan.
+- **Penyimpanan WebView**: tugas, pilihan kalender, dan tinggi panel Claude tersimpan lokal. File DPAPI hanya bisa dibuka oleh akun Windows yang sama.
+- **Data lokal tetap di komputermu.** FloatingBar tidak punya telemetri dan tidak mengirim notifikasi, info media, atau percakapan Claude-mu ke mana pun. Integrasi kalender opsional menghubungi Google setelah kamu menghubungkan akun Google.
 - **Permintaan jaringan**: ikon shortcut untuk situs web diambil dari layanan favicon Google (`https://www.google.com/s2/favicons?domain=…`), yang memberi tahu Google domain apa saja yang ada di shortcut-mu. Isi `icon` di shortcut untuk menghindarinya.
 - **Notifikasi** dibaca dari notification center Windows selama FloatingBar berjalan dan hanya disimpan di memori; tidak ada yang ditulis ke disk.
 - **Aplikasi Claude**: FloatingBar membaca pohon aksesibilitas jendela Claude secara lokal, yaitu label tombol sekitar setiap 1,5 detik untuk mendeteksi prompt izin, dan teks percakapan selama kamu memakai panel Claude. Mengirim prompt dengan gambar sempat memfokuskan jendela Claude dan memakai clipboard-mu.
@@ -265,6 +318,12 @@ Kalau isi file bukan JSON yang valid, daftar default yang ditampilkan sampai fil
 - Antarmukanya berbahasa Indonesia.
 
 ## Pemecahan masalah
+
+**Discord belum terhubung padahal sudah di voice.**
+Pastikan Discord desktop berjalan, isi pengaturan integrasi pada panel headset, lalu coba hubungkan kembali. Jika kredensial ditolak setelah reset secret, simpan secret baru dan autentikasi ulang. Izin RPC aplikasi Discord tetap diperlukan.
+
+**Kalender akun lain tidak muncul.**
+Kalender tersebut harus dibagikan/ditambahkan ke akun yang terhubung. Tekan **Perbarui izin Google** jika diminta, lalu centang sumber di **Pilih kalender**. Login akun lain di browser saja tidak menambah akses aplikasi.
 
 **Notifikasi tidak muncul di pill.**
 Pastikan akses notifikasi sudah diizinkan (lihat [Instalasi](#instalasi)); pill yang membesar menampilkan petunjuk oranye kalau belum. Notifikasi harus tetap menyala di Settings Windows, yang boleh dimatikan hanya banner-nya.
@@ -332,10 +391,17 @@ Hanya satu FloatingBar yang bisa berjalan, jadi keluarkan versi yang terpasang s
 ```
 src/                     antarmuka React
   App.tsx                pill, halaman, dan kartu
+  lib/calendar.ts        Google Calendar state and sample agenda
+  lib/discord.ts         Discord voice state and fictional demo members
+  lib/todos.ts           local task storage
   lib/native.ts          hook yang berbicara dengan sisi Rust (dan data contoh di browser)
   icons.tsx, styles.css
 src-tauri/src/           backend Rust
   lib.rs                 pengaturan jendela, hover tembus klik, posisi tersimpan, command
+  calendar.rs            Google OAuth PKCE and selected-calendar agenda
+  discord.rs             Discord IPC, OAuth, reconnect and voice controls
+  placement.rs           work-area bounds and expansion direction
+  secure_store.rs        Windows DPAPI encrypted storage
   media.rs               lagu yang diputar lewat Global System Media Transport Controls
   audio.rs               volume per aplikasi lewat sesi Core Audio
   battery.rs             baterai lewat GetSystemPowerStatus
@@ -361,12 +427,14 @@ scripts/
 Issue dan pull request sangat diterima.
 
 1. Fork dan clone repositorinya, lalu ikuti [Build dari source](#build-dari-source).
-2. Pakai `bun run dev` untuk mengerjakan antarmuka: berjalan di browser biasa dengan data contoh. Coba `mockNotify()` dan `mockPermission()` di console browser, atau buka keadaan demo langsung dengan `?demo=` dan salah satu dari `compact`, `music`, `notifications`, `notification`, `permission`, atau `claude` (misalnya `http://localhost:1420/?demo=claude`).
+2. Pakai `bun run dev` untuk mengerjakan antarmuka: berjalan di browser biasa dengan data contoh. Coba `mockNotify()` dan `mockPermission()` di console browser, atau buka keadaan demo langsung dengan `?demo=` dan salah satu dari `compact`, `music`, `notifications`, `notification`, `permission`, `claude`, `todos`, `calendar`, `calendar-setup`, `discord`, atau `discord-compact` (misalnya `http://localhost:1420/?demo=claude`).
    Untuk memperbarui screenshot README, biarkan dev server berjalan lalu jalankan `powershell -ExecutionPolicy Bypass -File scripts\capture-screenshots.ps1`; hasilnya disimpan ke `docs/screenshots` memakai Edge headless.
 3. Sebelum membuka pull request, pastikan `bun run build` (cek tipe + build) dan `cargo build --manifest-path src-tauri/Cargo.toml` berhasil.
 4. Pesan commit mengikuti [Conventional Commits](https://www.conventionalcommits.org/), misalnya `feat(media): …` atau `fix(notifications): …`.
 
 Kalau aplikasi Claude mengubah antarmukanya, label yang dicari FloatingBar dikumpulkan di bagian atas `src-tauri/src/claude_app.rs` dan di `src-tauri/src/ui_permission.rs`.
+
+Panduan maintainer: [rilis dan pemeriksaan sebelum push](docs/RELEASING.md). Catatan rilis yang disiapkan: [v0.2.0](docs/releases/v0.2.0.md).
 
 ## Lisensi
 

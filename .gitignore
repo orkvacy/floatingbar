@@ -8,3 +8,16 @@ src-tauri/gen
 .claude/
 .vscode/
 Thumbs.db
+
+# Private credentials and local captures are never release source.
+.env
+.env.*
+!.env.example
+client_secret*.json
+credentials*.json
+discord_oauth.json
+discord_token.json
+discord-client.dat
+discord-token.dat
+google-calendar.dat
+codex-clipboard-*.png

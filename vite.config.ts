@@ -10,10 +10,12 @@ function discordBridgePlugin(): Plugin {
   return {
     name: "discord-bridge-plugin",
     configureServer(server: ViteDevServer) {
-      const bridge = getDiscordBridge();
-
       server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
         const url = req.url ? req.url.split("?")[0] : "";
+        if (!url.startsWith("/api/discord/")) return next();
+        // The desktop uses Rust IPC. Start the Node bridge only for browser clients,
+        // otherwise tauri dev opens two Discord sessions and authorization flows.
+        const bridge = getDiscordBridge();
 
         if (url === "/api/discord/events") {
           res.writeHead(200, {
