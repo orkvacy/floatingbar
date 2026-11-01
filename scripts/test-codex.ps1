@@ -8,16 +8,17 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $deps = Join-Path $projectRoot 'src-tauri\target\debug\deps'
+if (!(Get-ChildItem -LiteralPath $deps -Filter 'libserde_json-*.rlib' -ErrorAction SilentlyContinue)) { $deps = Join-Path $projectRoot 'src-tauri\target\release\deps' }
 $out = Join-Path $projectRoot 'src-tauri\target\codex-tests'
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 $oldVersion = $env:CARGO_PKG_VERSION
 try {
   $env:CARGO_PKG_VERSION = (Get-Content -Raw (Join-Path $projectRoot 'package.json') | ConvertFrom-Json).version
-  foreach ($module in @('codex_rpc', 'codex_history', 'permission_provider')) {
+  foreach ($module in @('codex_rpc', 'codex_history', 'permission_provider', 'hook_http', 'hook_config', 'placement')) {
     $source = Join-Path $projectRoot "src-tauri\src\$module.rs"
     $binary = Join-Path $out "$module-tests.exe"
     $arguments = @('--edition=2021', '--test', $source, '-A', 'dead_code', '-o', $binary, '-L', "dependency=$deps")
-    $externs = switch ($module) { 'codex_rpc' { @('serde_json') }; 'codex_history' { @('serde', 'serde_json') }; default { @() } }
+    $externs = switch ($module) { 'codex_rpc' { @('serde_json') }; 'codex_history' { @('serde', 'serde_json') }; 'hook_http' { @('serde_json') }; 'hook_config' { @('serde_json') }; default { @() } }
     foreach ($dependency in $externs) {
       $library = Get-ChildItem -LiteralPath $deps -Filter "lib$dependency-*.rlib" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
       if (!$library) { throw "Missing $dependency library. Run cargo build --manifest-path src-tauri/Cargo.toml first." }

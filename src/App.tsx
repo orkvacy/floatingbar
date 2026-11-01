@@ -47,6 +47,8 @@ import { useCalendar } from "./lib/calendar";
 import { TodoPanel } from "./components/TodoPanel";
 import { CalendarPage } from "./components/CalendarPage";
 import { CodexPanel } from "./components/CodexPanel";
+import { AiSettings } from "./components/AiSettings";
+import { invoke } from "@tauri-apps/api/core";
 import { useCodex } from "./lib/codex";
 
 const spring = { type: "spring", stiffness: 420, damping: 32, mass: 0.9 } as const;
@@ -142,6 +144,8 @@ export default function App() {
   // (The select counts as typing: its dropdown takes focus.)
   const ask = useAsk();
   const codex = useCodex();
+  const [isolatedTest,setIsolatedTest]=useState(false);
+  useEffect(()=>{invoke<boolean>("get_test_mode").then(setIsolatedTest).catch(()=>{});},[]);
   const [aiProvider, setAiProvider] = useState<"claude" | "codex">(demo === "codex" ? "codex" : "claude");
   const [typing, setTyping] = useState(false);
   const [pager, setPager] = useState({ index: HOME_PAGE, dir: 0 });
@@ -302,6 +306,7 @@ export default function App() {
                 <Shortcuts shortcuts={shortcuts} onOpen={openShortcut} onEdit={editShortcuts} />
               </Header>
               {notifyError && <p className="hint">{notifyError}</p>}
+              {isolatedTest && <p className="hint" role="status">Uji terisolasi · akun dan data utama tidak dipakai</p>}
               <AnimatePresence mode="popLayout" initial={false} custom={pager.dir}>
                 {showTodo ? (
                   <motion.div key="todos" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} transition={{ duration: 0.22 }}>
@@ -340,6 +345,7 @@ export default function App() {
                           <option value="claude">Claude desktop</option><option value="codex">ChatGPT / Codex</option>
                         </select>
                         {aiProvider === "claude" ? <ClaudePage ask={ask} onTyping={setTyping} /> : <CodexPanel codex={codex} onTyping={setTyping} />}
+                        <AiSettings />
                       </div>
                     ) : page === "calendar" ? (
                       <CalendarPage calendar={calendar} now={now} onTyping={setTyping} />

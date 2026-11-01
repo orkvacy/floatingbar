@@ -78,7 +78,7 @@ Dibangun dengan Tauri 2 (Rust) dan React + TypeScript.
 ## Kebutuhan
 
 - Untuk panel opsional **ChatGPT / Codex**: Codex CLI sudah terpasang dan login.
-- Windows 10 atau 11 (dikembangkan dan diuji di Windows 11).
+- Platform yang diuji: Windows 11 x64. Kompatibilitas Windows 10 belum divalidasi untuk kandidat ini.
 - Microsoft Edge WebView2 Runtime (sudah ada di Windows 11; installer menambahkannya di Windows 10 bila belum ada).
 - Untuk fitur Claude: [aplikasi Claude desktop](https://claude.ai/download) dengan antarmuka berbahasa Inggris.
 
@@ -206,34 +206,19 @@ Panel tetap terbuka selama kamu mengetik atau Claude sedang membalas. Kalau apli
 
 > Mengirim ke percakapan yang sedang terbuka di aplikasi akan menambahkan pesanmu ke percakapan itu. Pilih **＋ Chat baru** untuk memulai dari awal.
 
+Deteksi prompt desktop eksternal ChatGPT / Codex dan Antigravity **mati secara default**. Aktifkan di **AI → Pengaturan AI** untuk mencoba deteksi; adapter ini menyediakan **Buka aplikasi**, belum jawaban langsung yang terverifikasi. Claude dan sesi Codex milik FloatingBar tetap tersedia. Lihat [kesiapan rilis](docs/RELEASE-READINESS.md) untuk hasil validasi dan syarat yang masih terbuka.
+
 ### Menjawab permintaan izin
 
 FloatingBar bisa menjawab dua jenis permintaan izin. Di keduanya, kartu di pill menyediakan **Izinkan**, **Tolak**, dan **Buka di Claude** (jawab di aplikasi Claude saja).
 
 **Permintaan izin di aplikasi Claude desktop** (misalnya tool konektor di Chat) tertangkap otomatis: FloatingBar memantau aplikasi untuk prompt *Allow once / Decline* dan menekan tombol yang sesuai saat kamu menjawab di pill.
 
-**Permintaan izin Claude Code** (tab Code di aplikasi desktop atau CLI `claude`) memakai hook Claude Code. Tambahkan ini ke `~/.claude/settings.json` (gabungkan dengan `hooks` yang sudah ada, kalau ada):
+**Permintaan izin Claude Code** memakai helper lokal dengan autentikasi. Buka **AI → Pengaturan AI → Siapkan / perbarui hook Claude Code**. FloatingBar memperbarui hook miliknya di `~/.claude/settings.json` (atau `CLAUDE_CONFIG_DIR`), menjaga hook lain, dan membuat `settings.json.floatingbar-backup` sebelum mengubah file yang sudah ada. Memerlukan Claude Code 2.1.207 atau lebih baru untuk hook exec-form; diuji dengan 2.1.312. Mulai sesi Claude Code baru setelahnya.
 
-```json
-{
-  "hooks": {
-    "PermissionRequest": [
-      {
-        "hooks": [
-          {
-            "type": "http",
-            "url": "http://127.0.0.1:47821/permission",
-            "timeout": 60,
-            "statusMessage": "Menunggu jawaban di FloatingBar…"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+Hook menjalankan `floatingbar.exe` yang terpasang dengan `args: ["--permission-hook"]`, tanpa menaruh secret dalam pengaturan atau argumen proses. Token sementara disimpan dengan Windows DPAPI; helper mengirim permintaan ke port loopback acak. Autentikasi tidak valid, origin browser, permintaan terlalu besar, dan antrean berlebih ditolak. Setelah 50 detik, saat pill tersembunyi, atau aplikasi tidak berjalan, kontrol kembali ke prompt Claude tanpa memberikan izin.
 
-Dengan hook ini, setiap permintaan izin muncul di pill bersama nama tool, folder proyek, dan perintah atau file yang diminta. Kalau tidak dijawab dalam 55 detik, kalau pill sedang disembunyikan, atau kalau FloatingBar tidak berjalan, Claude Code kembali ke prompt izinnya yang biasa. Untuk mematikannya, hapus blok `PermissionRequest` dari file pengaturan itu.
+Hook HTTP FloatingBar lama dimigrasikan saat startup. Setelah memindahkan/memasang ulang executable, gunakan tombol pengaturan lagi untuk memperbarui path. Untuk mematikan hook, hapus hanya entri FloatingBar dari `PermissionRequest` dan pertahankan hook lainnya.
 
 ## Opsional: notifikasi hanya di FloatingBar
 
@@ -280,6 +265,8 @@ FloatingBar menyimpan file-filenya di `%APPDATA%\id.orkvacy.floatingbar\`:
 | --- | --- |
 | `shortcuts.json` | Shortcut di header. Dibuat dengan isi default saat pertama dipakai. |
 | `position.json` | Posisi terakhir pill. Hapus untuk mengembalikan ke tengah. |
+| `preferences.json` | Pilihan deteksi desktop eksperimental; default mati. |
+| `permission-hook.dat` | Kredensial hook lokal per proses, terenkripsi DPAPI. |
 | `discord-client.dat` | Client ID/secret Discord, terenkripsi DPAPI. |
 | `discord-token.dat` | Token Discord, terenkripsi DPAPI. |
 | `google-calendar.dat` | Kredensial dan token Google, terenkripsi DPAPI. |
@@ -315,7 +302,7 @@ Kalau isi file bukan JSON yang valid, daftar default yang ditampilkan sampai fil
 - **Permintaan jaringan**: ikon shortcut untuk situs web diambil dari layanan favicon Google (`https://www.google.com/s2/favicons?domain=…`), yang memberi tahu Google domain apa saja yang ada di shortcut-mu. Isi `icon` di shortcut untuk menghindarinya.
 - **Notifikasi** dibaca dari notification center Windows selama FloatingBar berjalan dan hanya disimpan di memori; tidak ada yang ditulis ke disk.
 - **Aplikasi Claude**: FloatingBar membaca pohon aksesibilitas jendela Claude secara lokal, yaitu label tombol sekitar setiap 1,5 detik untuk mendeteksi prompt izin, dan teks percakapan selama kamu memakai panel Claude. Mengirim prompt dengan gambar sempat memfokuskan jendela Claude dan memakai clipboard-mu.
-- **Endpoint izin lokal**: FloatingBar mendengarkan di `http://127.0.0.1:47821` (hanya bisa diakses dari komputer ini) untuk hook Claude Code. Endpoint ini tanpa autentikasi: program lain di komputermu bisa mengirim permintaan dan memunculkan kartu, tapi tidak ada yang disetujui kecuali kamu menekan **Izinkan**, dan jawabannya hanya kembali ke pihak yang meminta.
+- **Helper izin lokal**: port loopback acak memerlukan bearer token per proses yang tersimpan dengan DPAPI. Permintaan ber-origin browser ditolak. Ini membatasi pengirim tanpa autentikasi; program yang berjalan sebagai user Windows Anda tetap berada dalam batas kepercayaan yang sama. Tidak ada izin otomatis.
 - **Startup**: *Jalan saat Windows start* menambahkan entri di `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`; mematikannya menghapus entri itu.
 
 ## Keterbatasan
@@ -352,7 +339,7 @@ Autostart diaktifkan dari versi pengembangan, yang memuat antarmukanya dari dev 
 Jalankan aplikasi Claude desktop lalu tekan **⟳**. Kalau masih gagal, mungkin tampilan aplikasinya berubah; silakan [buka issue](https://github.com/orkvacy/floatingbar/issues).
 
 **Permintaan izin tidak sampai ke pill.**
-Untuk Claude Code, periksa hook di `~/.claude/settings.json` (JSON valid, port `47821`) dan pastikan FloatingBar berjalan dan terlihat. Claude Code membaca pengaturan saat sesi dimulai, jadi mulai sesi baru setelah mengeditnya.
+Untuk Claude Code, periksa status di **AI → Pengaturan AI**, jalankan **Siapkan / perbarui hook Claude Code**, lalu mulai sesi Claude Code baru. Pastikan FloatingBar berjalan dan terlihat. Jika pengaturan JSON tidak valid, perbaiki file tersebut sebelum mencoba lagi; aplikasi tidak menimpa pengaturan yang rusak.
 
 ## Uninstall
 
@@ -445,7 +432,7 @@ Issue dan pull request sangat diterima.
 
 Kalau aplikasi Claude mengubah antarmukanya, label yang dicari FloatingBar dikumpulkan di bagian atas `src-tauri/src/claude_app.rs` dan di `src-tauri/src/ui_permission.rs`.
 
-Panduan maintainer: [rilis dan pemeriksaan sebelum push](docs/RELEASING.md). Catatan rilis yang disiapkan: [v0.3.0](docs/releases/v0.3.0.md).
+Panduan maintainer: [rilis dan pemeriksaan sebelum push](docs/RELEASING.md). Catatan rilis yang disiapkan: [v0.4.0-rc.1](docs/releases/v0.4.0-rc.1.md).
 
 ## Lisensi
 

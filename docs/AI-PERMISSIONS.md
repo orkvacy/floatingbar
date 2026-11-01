@@ -33,6 +33,8 @@ Error ditampilkan di panel dan draft tetap tersedia jika pengiriman gagal. Setel
 
 ## Adapter desktop eksperimental
 
+Default **mati**. Buka **AI → Pengaturan AI** untuk mengaktifkan deteksi desktop eksperimental. Preferensi disimpan lokal. Ini tidak mematikan Claude atau sesi Codex App Server yang dibuat melalui FloatingBar.
+
 Pencocokan memakai executable dan identitas paket Windows. Codex yang memakai `ChatGPT.exe` dikenali melalui paket `OpenAI.Codex_*` dengan `GetApplicationUserModelId`. Nama proses/judul jendela saja tidak membuktikan adanya prompt.
 
 UI Automation mencari pasangan tombol pada container yang berdekatan (maksimal lima ancestor, tidak memakai seluruh jendela), dengan konteks permintaan izin dan tombol yang terlihat/aktif. Sebelum menjawab Claude, identitas kedua elemen, sumber, window handle, dan teks dipindai ulang. Jawaban terlambat ditolak. Adapter baru tidak menyediakan jawaban langsung; aktifkan hanya setelah diuji pada prompt asli.

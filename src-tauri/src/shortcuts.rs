@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Shell::ShellExecuteW;
@@ -30,7 +30,7 @@ fn defaults() -> Vec<Shortcut> {
 }
 
 pub fn file(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|d| d.join("shortcuts.json"))
+    crate::profile::config(app).ok().map(|d| d.join("shortcuts.json"))
 }
 
 /// Read on every call so edits to the file show up without a restart.

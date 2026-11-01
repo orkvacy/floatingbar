@@ -29,7 +29,9 @@ fn on_event(app: &AppHandle, event: Value) {
     let method = event["method"].as_str().unwrap_or("");
     let p = &event["params"];
     if method == "floatingbar/permissionClosed" {
-        let _ = app.emit("permission-closed", p["id"].as_u64());
+        if let Some(id) = p["id"].as_u64() {
+            crate::permission::close(app, id);
+        }
         return;
     }
     if method == "floatingbar/disconnected" {
@@ -53,8 +55,8 @@ fn on_event(app: &AppHandle, event: Value) {
         let summary = approval_summary(p, item);
         drop(items);
         let can_allow = crate::codex_rpc::approval_result(method, p, true).is_ok();
-        let _ = app.emit(
-            "permission",
+        crate::permission::publish(
+            app,
             PermissionRequest {
                 id,
                 provider: "codex-rpc".into(),
@@ -147,10 +149,20 @@ fn client(app: &AppHandle) -> Result<Client, String> {
 
 #[tauri::command]
 pub async fn codex_threads(app: AppHandle, cursor: Option<String>) -> Result<Value, String> {
+    if crate::profile::test_dir().is_some() {
+        return Ok(
+            json!({"data":[{"id":"isolated","name":"Percakapan uji","preview":"Uji terisolasi"}],"nextCursor":null}),
+        );
+    }
     tauri::async_runtime::spawn_blocking(move || client(&app)?.call("thread/list", json!({"limit":30,"cursor":cursor,"useStateDbOnly":true,"sortKey":"updated_at","sourceKinds":["cli","vscode","appServer","unknown"]}))).await.map_err(|_| "Pekerja Codex berhenti".to_string())?
 }
 #[tauri::command]
 pub async fn codex_read(app: AppHandle, thread_id: String) -> Result<Value, String> {
+    if crate::profile::test_dir().is_some() {
+        return Ok(
+            json!({"history":{"threadId":thread_id,"messages":[{"id":"fixture","role":"assistant","text":"Riwayat uji terisolasi."}],"working":false,"error":null},"cwd":crate::profile::test_dir().unwrap().to_string_lossy(),"owned":false}),
+        );
+    }
     tauri::async_runtime::spawn_blocking(move || {
         let data = client(&app)?.call("thread/read", json!({"threadId":thread_id,"includeTurns":true}))?;
         let state = app.state::<Codex>();
@@ -168,6 +180,11 @@ pub async fn codex_send(
     cwd: String,
     prompt: String,
 ) -> Result<String, String> {
+    if crate::profile::test_dir().is_some() {
+        let id = "isolated-owned";
+        let _=app.emit("codex-history",json!({"threadId":id,"messages":[{"id":"u","role":"user","text":prompt},{"id":"a","role":"assistant","text":"Balasan fixture uji terisolasi."}],"working":false,"error":null}));
+        return Ok(id.into());
+    }
     if prompt.trim().is_empty() || prompt.len() > 100_000 {
         return Err("Prompt kosong atau terlalu panjang".into());
     }

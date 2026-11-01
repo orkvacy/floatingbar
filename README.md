@@ -78,7 +78,7 @@ Built with Tauri 2 (Rust) and React + TypeScript.
 ## Requirements
 
 - For the optional **ChatGPT / Codex** panel: install and sign in to Codex CLI.
-- Windows 10 or 11 (developed and tested on Windows 11).
+- Windows 11 x64 is the tested platform. Windows 10 compatibility has not been validated for this candidate.
 - Microsoft Edge WebView2 Runtime (included with Windows 11; the installer adds it on Windows 10 if missing).
 - For the Claude features: the [Claude desktop app](https://claude.ai/download) with its interface in English.
 
@@ -206,34 +206,19 @@ The panel stays open while you type or while Claude is replying. If the Claude a
 
 > Sending to the conversation that is open in the app adds your message to that conversation. Choose **＋ Chat baru** to start fresh.
 
+Desktop detection for external ChatGPT / Codex and Antigravity prompts is **off by default**. Enable it in **AI → Pengaturan AI** only for experimental detection; those adapters offer **Buka aplikasi**, not verified direct answers. Claude and FloatingBar-owned Codex sessions remain available. See [release readiness](docs/RELEASE-READINESS.md) for validation and outstanding gates.
+
 ### Answering permission prompts
 
 FloatingBar can answer two kinds of permission prompts. In both cases the card on the pill offers **Izinkan** (allow), **Tolak** (deny) and **Buka di Claude** (answer in Claude instead).
 
 **Prompts in the Claude desktop app** (for example a connector tool in Chat) are picked up automatically: FloatingBar watches the app for an *Allow once / Decline* prompt and presses the matching button when you answer on the pill.
 
-**Claude Code prompts** (desktop Code tab or the `claude` CLI) use a Claude Code hook. Add this to `~/.claude/settings.json` (merge it with any `hooks` you already have):
+**Claude Code prompts** use an authenticated local helper. Open **AI → Pengaturan AI → Siapkan / perbarui hook Claude Code**. FloatingBar updates its own hook in `~/.claude/settings.json` (or `CLAUDE_CONFIG_DIR`), preserves unrelated hooks, and creates `settings.json.floatingbar-backup` before changing an existing file. Requires Claude Code 2.1.207 or later for exec-form hooks; tested with 2.1.312. Start a new Claude Code session afterward.
 
-```json
-{
-  "hooks": {
-    "PermissionRequest": [
-      {
-        "hooks": [
-          {
-            "type": "http",
-            "url": "http://127.0.0.1:47821/permission",
-            "timeout": 60,
-            "statusMessage": "Waiting for an answer in FloatingBar…"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+The hook runs the installed `floatingbar.exe` with `args: ["--permission-hook"]`, without placing a secret in settings or command arguments. Its short-lived token is stored with Windows DPAPI; the helper sends requests to a random loopback port. Invalid authentication, browser origins, oversized requests, and excess pending requests are rejected. After 50 seconds, when hidden, or when offline, FloatingBar returns control to Claude's normal prompt without granting permission.
 
-With the hook in place, each permission request appears on the pill with the tool name, the project folder and the command or file. If you don't answer within 55 seconds, if the pill is hidden, or if FloatingBar isn't running, Claude Code falls back to its normal prompt. To turn this off, remove the `PermissionRequest` block from the settings file.
+Existing FloatingBar HTTP hooks are migrated on startup. After moving/reinstalling the executable, use the setup button again to refresh its path. To disable the hook, remove only the FloatingBar entry from `PermissionRequest`, preserving other hooks.
 
 ## Optional: show notifications only in FloatingBar
 
@@ -280,6 +265,8 @@ FloatingBar stores its files in `%APPDATA%\id.orkvacy.floatingbar\`:
 | --- | --- |
 | `shortcuts.json` | Header shortcuts. Created with defaults on first use. |
 | `position.json` | Where you dragged the pill. Delete it to reset. |
+| `preferences.json` | Experimental desktop detection preference; off by default. |
+| `permission-hook.dat` | Per-run local hook credentials, encrypted with DPAPI. |
 | `discord-client.dat` | Discord Client ID/secret, encrypted with DPAPI. |
 | `discord-token.dat` | Discord token, encrypted with DPAPI. |
 | `google-calendar.dat` | Google credentials and tokens, encrypted with DPAPI. |
@@ -315,7 +302,7 @@ If the file contains invalid JSON, the defaults are shown until it's fixed.
 - **Network requests**: shortcut icons for websites are loaded from Google's favicon service (`https://www.google.com/s2/favicons?domain=…`), which tells Google which domains are in your shortcuts. Set an `icon` for a shortcut to avoid this.
 - **Notifications** are read from the Windows notification center while FloatingBar runs and kept in memory only; nothing is written to disk.
 - **Claude app**: FloatingBar reads the Claude window's accessibility tree locally — button labels about every 1.5 seconds to spot permission prompts, and conversation text while you use the Claude panel. Sending a prompt with an image briefly focuses the Claude window and uses your clipboard.
-- **Local permission endpoint**: FloatingBar listens on `http://127.0.0.1:47821` (only reachable from this computer) for the Claude Code hook. It has no authentication: another program on your computer could post a request and make a card appear, but nothing is approved unless you click **Izinkan**, and the answer only goes back to whoever asked.
+- **Local permission helper**: a random loopback port requires a per-run bearer token stored with DPAPI. Browser-origin requests are rejected. This limits unauthenticated requests; software running as your Windows user remains within the same trust boundary. Nothing is approved automatically.
 - **Startup**: *Jalan saat Windows start* adds an entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`; turning it off removes it.
 
 ## Known limitations
@@ -352,7 +339,7 @@ Autostart was turned on from a development build, which loads its interface from
 Start the Claude desktop app and press **⟳**. If it still fails, the app's interface may have changed; please [open an issue](https://github.com/orkvacy/floatingbar/issues).
 
 **Permission prompts don't reach the pill.**
-For Claude Code, check the hook in `~/.claude/settings.json` (valid JSON, port `47821`) and that FloatingBar is running and visible. Claude Code reads settings at session start, so start a new session after editing.
+For Claude Code, check the status in **AI → Pengaturan AI**, run **Siapkan / perbarui hook Claude Code**, and start a new Claude Code session. Keep FloatingBar running and visible. If setup reports invalid JSON, fix the settings file before retrying; it will not overwrite malformed settings.
 
 ## Uninstall
 
@@ -445,7 +432,7 @@ Issues and pull requests are welcome.
 
 If the Claude app changes its interface, the labels FloatingBar looks for are collected at the top of `src-tauri/src/claude_app.rs` and in `src-tauri/src/ui_permission.rs`.
 
-Maintainers: see the [release and pre-push checklist](docs/RELEASING.md) and prepared [v0.3.0 release notes](docs/releases/v0.3.0.md).
+Maintainers: see the [release and pre-push checklist](docs/RELEASING.md) and prepared [v0.4.0-rc.1 release notes](docs/releases/v0.4.0-rc.1.md).
 
 ## License
 

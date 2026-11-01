@@ -234,7 +234,7 @@ impl OAuthCredentials {
 }
 
 fn private_file(app: &AppHandle, name: &str) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|dir| dir.join(name))
+    crate::profile::config(app).ok().map(|dir| dir.join(name))
 }
 
 fn load_credentials(app: &AppHandle) -> Result<OAuthCredentials, String> {

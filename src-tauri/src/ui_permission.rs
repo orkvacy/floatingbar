@@ -6,7 +6,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use windows::core::{Result, PWSTR, VARIANT};
 use windows::Win32::Foundation::{CloseHandle, BOOL, HWND, LPARAM};
 use windows::Win32::Storage::Packaging::Appx::GetApplicationUserModelId;
@@ -66,15 +66,15 @@ struct Prompt {
 }
 // Retained for the separate Claude conversation panel.
 pub(crate) fn claude_windows() -> Vec<HWND> {
-    ai_windows()
+    ai_windows(false)
         .into_iter()
         .filter(|(p, _)| *p == Provider::Claude)
         .map(|(_, w)| w)
         .collect()
 }
-fn ai_windows() -> Vec<(Provider, HWND)> {
+fn ai_windows(experimental: bool) -> Vec<(Provider, HWND)> {
     unsafe extern "system" fn collect(hwnd: HWND, out: LPARAM) -> BOOL {
-        let out = &mut *(out.0 as *mut Vec<(Provider, HWND)>);
+        let (out, experimental) = &mut *(out.0 as *mut (Vec<(Provider, HWND)>, bool));
         if IsWindowVisible(hwnd).as_bool() {
             let mut pid = 0;
             GetWindowThreadProcessId(hwnd, Some(&mut pid));
@@ -83,18 +83,20 @@ fn ai_windows() -> Vec<(Provider, HWND)> {
                     if let Some(provider) =
                         Provider::from_identity(&exe, process_app_id(pid).as_deref())
                     {
-                        out.push((provider, hwnd));
+                        if provider == Provider::Claude || *experimental {
+                            out.push((provider, hwnd));
+                        }
                     }
                 }
             }
         }
         true.into()
     }
-    let mut found = Vec::new();
+    let mut found = (Vec::new(), experimental);
     unsafe {
         let _ = EnumWindows(Some(collect), LPARAM(&mut found as *mut _ as isize));
     }
-    found
+    found.0
 }
 
 fn process_app_id(pid: u32) -> Option<String> {
@@ -148,12 +150,12 @@ fn same(ua: &IUIAutomation, a: &Prompt, b: &Prompt) -> bool {
                     .unwrap_or(false)
         }
 }
-fn find_prompts(ua: &IUIAutomation) -> Vec<Prompt> {
+fn find_prompts(ua: &IUIAutomation, experimental: bool) -> Vec<Prompt> {
     let mut found = Vec::new();
     let Ok(walker) = (unsafe { ua.ControlViewWalker() }) else {
         return found;
     };
-    for (provider, hwnd) in ai_windows() {
+    for (provider, hwnd) in ai_windows(experimental) {
         let Ok(root) = (unsafe { ua.ElementFromHandle(hwnd) }) else {
             continue;
         };
@@ -255,7 +257,7 @@ fn run(app: AppHandle, rx: Receiver<Answer>) {
             Ok(answer) => {
                 // Fresh handles and identity check: never apply a queued click to a replacement prompt.
                 let result = current.iter().find(|p| p.id == answer.id)
-                    .and_then(|old| find_prompts(&ua).into_iter().find(|new| same(&ua, old, new)))
+                    .and_then(|old| find_prompts(&ua, crate::preferences::experimental(&app)).into_iter().find(|new| same(&ua, old, new)))
                     .ok_or_else(|| "Prompt sudah ditutup atau berubah. Tunggu permintaan terbaru.".to_string())
                     .and_then(|p| {
                         if Instant::now() >= answer.expires { return Err("Jawaban kedaluwarsa. Periksa prompt di aplikasi asal.".into()); }
@@ -274,15 +276,15 @@ fn run(app: AppHandle, rx: Receiver<Answer>) {
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => return,
         }
-        let mut fresh = find_prompts(&ua);
+        let mut fresh = find_prompts(&ua, crate::preferences::experimental(&app));
         for p in &mut fresh {
             if let Some(old) = current.iter().find(|old| same(&ua, old, p)) {
                 p.id = old.id;
             } else {
                 next += 1;
                 p.id = next;
-                let _ = app.emit(
-                    "permission",
+                crate::permission::publish(
+                    &app,
                     PermissionRequest {
                         id: p.id,
                         provider: p.provider.id().into(),
@@ -298,7 +300,7 @@ fn run(app: AppHandle, rx: Receiver<Answer>) {
         }
         for old in &current {
             if !fresh.iter().any(|p| p.id == old.id) {
-                let _ = app.emit("permission-closed", old.id);
+                crate::permission::close(&app, old.id);
             }
         }
         current = fresh;

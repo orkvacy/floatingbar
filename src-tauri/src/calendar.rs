@@ -87,10 +87,7 @@ fn client() -> Result<Client, String> {
 }
 
 fn account_path(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_config_dir()
-        .map(|p| p.join("google-calendar.dat"))
-        .map_err(|e| e.to_string())
+    crate::profile::config(app).map(|p|p.join("google-calendar.dat"))
 }
 
 fn load_account(app: &AppHandle) -> Result<Option<Account>, String> {
@@ -586,6 +583,7 @@ pub async fn calendar_connect(
     app: AppHandle,
     credentials_json: Option<String>,
 ) -> Result<(), String> {
+    if crate::profile::test_dir().is_some(){return Err("Koneksi akun dinonaktifkan dalam mode uji terisolasi".into());}
     tauri::async_runtime::spawn_blocking(move || connect(&app, credentials_json.as_deref()))
         .await
         .map_err(|e| e.to_string())?

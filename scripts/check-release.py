@@ -43,7 +43,7 @@ def main():
     failures = []
     private_paths = [str(ROOT), os.environ.get("USERPROFILE", "")]
     patterns = [p.encode().lower() for value in private_paths if value for p in (value, value.replace("\\", "/"), value.replace("\\", "\\\\"))]
-    forbidden = re.compile(r'(^|/)(\.env(?:\..*)?|client_secret[^/]*\.json|credentials[^/]*\.json|discord_token\.json|discord_oauth\.json|(?:discord-client|discord-token|google-calendar)\.(?:dat|tmp)|codex-clipboard-[^/]*\.png)$', re.I)
+    forbidden = re.compile(r'(^|/)(\.env(?:\..*)?|client_secret[^/]*\.json|credentials[^/]*\.json|discord_token\.json|discord_oauth\.json|(?:discord-client|discord-token|google-calendar|permission-hook)\.(?:dat|tmp)|codex-clipboard-[^/]*\.png)$', re.I)
     literal_secret = re.compile(rb'(?:client_secret|CLIENT_SECRET)\s*(?::[^=\n]+)?\s*[:=]\s*["\']([A-Za-z0-9_\-]{20,})["\']')
     token_pattern = re.compile(rb'(?:ya29\.[A-Za-z0-9_\-]{25,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})')
 
@@ -73,7 +73,7 @@ def main():
     for name, rule in failures:
         print(f"FAIL {name}: {rule}")
     print(f"{'FAIL' if failures else 'PASS'}: {'staged index' if args.staged else 'working release inputs'}; {len(args.artifact)} artifact(s).")
-    print("Historical exposure still requires rotating the old Discord secret. Images require visual review.")
+    print("Scans cannot verify provider-side credential revocation. Images require visual review.")
     return bool(failures)
 
 

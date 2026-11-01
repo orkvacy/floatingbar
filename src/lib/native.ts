@@ -219,13 +219,17 @@ export function usePermissions() {
       });
       return;
     }
-    const added = listen<PermissionRequest>("permission", (e) => setQueue((q) => q.some((p) => p.id === e.payload.id) ? q : [...q, e.payload]));
-    // The source prompt disappeared or the hook fell back to the app.
-    const closed = listen<number>("permission-closed", (e) => remove(e.payload));
-    return () => {
-      added.then((f) => f());
-      closed.then((f) => f());
-    };
+    let stopped = false;
+    const closedIds = new Set<number>();
+    const added = listen<PermissionRequest>("permission", (e) => {
+      if (!stopped && !closedIds.has(e.payload.id)) setQueue((q) => q.some((p) => p.id === e.payload.id) ? q : [...q, e.payload]);
+    });
+    const closed = listen<number>("permission-closed", (e) => { closedIds.add(e.payload); remove(e.payload); });
+    Promise.all([added,closed]).then(() => invoke<PermissionRequest[]>("get_pending_permissions")).then((pending) => {
+      if (!stopped) setQueue((q) => [...pending, ...q].filter((p,i,all) => !closedIds.has(p.id) && all.findIndex((r) => r.id===p.id)===i));
+    }).catch((e) => { if (!stopped) setError({ id: -1, message: String(e) }); });
+    return () => { stopped = true; added.then((f) => f()); closed.then((f) => f()); };
+
   }, [remove]);
 
   const answer = useCallback(

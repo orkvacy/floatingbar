@@ -20,4 +20,7 @@ discord_token.json
 discord-client.dat
 discord-token.dat
 google-calendar.dat
+permission-hook.dat
+*.floatingbar-backup
+*.floatingbar.tmp
 codex-clipboard-*.png

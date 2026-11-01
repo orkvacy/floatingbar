@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    floatingbar_lib::run()
+    if !floatingbar_lib::handle_cli() { floatingbar_lib::run() }
 }

@@ -9,13 +9,11 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{mpsc, Mutex};
-use std::thread;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
-pub const PORT: u16 = 47821;
 /// Shorter than the hook's own timeout, so Claude always gets an answer.
-const WAIT: Duration = Duration::from_secs(55);
+const WAIT: Duration = Duration::from_secs(50);
 
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -24,7 +22,7 @@ pub struct PermissionRequest {
     pub provider: String,
     pub provider_name: String,
     pub can_answer: bool,
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub can_allow: Option<bool>,
     pub tool: String,
     /// The command, file or URL the tool wants to use.
@@ -60,23 +58,26 @@ fn summarize(tool: &str, input: &Value) -> String {
         .unwrap_or_else(|| input.to_string().chars().take(300).collect())
 }
 
-fn handle(app: &AppHandle, body: &str) -> String {
-    let Ok(input) = serde_json::from_str::<Value>(body) else {
-        return "{}".into();
-    };
+fn handle(app: &AppHandle, input: Value) -> Result<Value, u16> {
     // Only ask through the pill while it is on screen.
     let visible = app
         .get_webview_window("main")
         .and_then(|w| w.is_visible().ok())
         .unwrap_or(false);
     if !visible {
-        return "{}".into();
+        return Ok(json!({}));
     }
 
     let pending = app.state::<Pending>();
     let id = pending.next.fetch_add(1, Ordering::Relaxed);
     let (tx, rx) = mpsc::channel();
-    pending.waiting.lock().unwrap().insert(id, tx);
+    {
+        let mut waiting = pending.waiting.lock().unwrap();
+        if waiting.len() >= 4 {
+            return Err(429);
+        }
+        waiting.insert(id, tx);
+    }
 
     let tool = input["tool_name"].as_str().unwrap_or("Tool").to_string();
     let project = input["cwd"]
@@ -99,19 +100,20 @@ fn handle(app: &AppHandle, body: &str) -> String {
         tool,
         project,
     };
-    let _ = app.emit("permission", request);
+    publish(app, request);
 
     let decision = rx.recv_timeout(WAIT).unwrap_or(Decision::Ask);
     pending.waiting.lock().unwrap().remove(&id);
-    let _ = app.emit("permission-closed", id);
+    close(app, id);
 
     let behavior = match decision {
-        Decision::Ask => return "{}".into(),
+        Decision::Ask => return Ok(json!({})),
         Decision::Allow => json!({ "behavior": "allow" }),
         Decision::Deny => json!({ "behavior": "deny", "message": "Ditolak lewat FloatingBar" }),
     };
-    json!({ "hookSpecificOutput": { "hookEventName": "PermissionRequest", "decision": behavior } })
-        .to_string()
+    Ok(
+        json!({ "hookSpecificOutput": { "hookEventName": "PermissionRequest", "decision": behavior } }),
+    )
 }
 
 pub fn answer(app: &AppHandle, id: u64, decision: Decision) -> Result<(), String> {
@@ -123,28 +125,89 @@ pub fn answer(app: &AppHandle, id: u64, decision: Decision) -> Result<(), String
         .remove(&id)
         .ok_or("Permintaan sudah berakhir")?;
     tx.send(decision)
-        .map_err(|_| "Permintaan sudah berakhir".into())
+        .map_err(|_| "Permintaan sudah berakhir".to_string())?;
+    close(app, id);
+    Ok(())
 }
 
-pub fn spawn_server(app: AppHandle) {
-    thread::spawn(move || {
-        let server = match tiny_http::Server::http(("127.0.0.1", PORT)) {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("permission server: {e}");
-                return;
-            }
-        };
-        let json_header: tiny_http::Header = "Content-Type: application/json".parse().unwrap();
-        for mut request in server.incoming_requests() {
-            let (app, header) = (app.clone(), json_header.clone());
-            // Each request blocks until answered, so serve them in parallel.
-            thread::spawn(move || {
-                let mut body = String::new();
-                let _ = request.as_reader().read_to_string(&mut body);
-                let out = handle(&app, &body);
-                let _ = request.respond(tiny_http::Response::from_string(out).with_header(header));
-            });
+#[derive(Default)]
+pub struct HookState {
+    service: Mutex<Option<crate::hook_http::Service>>,
+    error: Mutex<Option<String>>,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HookStatus {
+    running: bool,
+    error: Option<String>,
+    test_profile: bool,
+}
+#[tauri::command]
+pub fn get_hook_status(state: tauri::State<HookState>) -> HookStatus {
+    HookStatus {
+        running: state.service.lock().unwrap().is_some(),
+        error: state.error.lock().unwrap().clone(),
+        test_profile: crate::profile::test_dir().is_some(),
+    }
+}
+#[tauri::command]
+pub async fn configure_permission_hook(app: AppHandle) -> Result<usize, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<HookState>();
+        if state.service.lock().unwrap().is_none() {
+            return Err("Layanan izin belum aktif".into());
         }
-    });
+        let result = crate::permission_bridge::configure(true);
+        *state.error.lock().unwrap() = result.as_ref().err().cloned();
+        result
+    })
+    .await
+    .map_err(|_| "Pekerja konfigurasi berhenti".to_string())?
+}
+pub fn spawn_server(app: AppHandle) {
+    let state = app.state::<HookState>();
+    let result = (|| -> Result<crate::hook_http::Service, String> {
+        let mut bytes = [0u8; 32];
+        getrandom::fill(&mut bytes).map_err(|_| "Token lokal tidak bisa dibuat")?;
+        let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        let owner = app.clone();
+        let service =
+            crate::hook_http::Service::start(token.clone(), move |body| handle(&owner, body))
+                .map_err(|_| "Layanan izin lokal tidak bisa dijalankan")?;
+        crate::permission_bridge::create(service.address.port(), token)?;
+        // Upgrade only an already-configured FloatingBar endpoint.
+        if let Err(e) = crate::permission_bridge::configure(false) {
+            *state.error.lock().unwrap() = Some(e);
+        }
+        Ok(service)
+    })();
+    match result {
+        Ok(service) => *state.service.lock().unwrap() = Some(service),
+        Err(e) => *state.error.lock().unwrap() = Some(e),
+    }
+}
+
+#[derive(Default)]
+pub struct LiveRequests(Mutex<Vec<PermissionRequest>>);
+pub fn publish(app: &AppHandle, request: PermissionRequest) {
+    let state = app.state::<LiveRequests>();
+    let mut queue = state.0.lock().unwrap();
+    if queue.iter().any(|r| r.id == request.id) {
+        return;
+    }
+    queue.push(request.clone());
+    let _ = app.emit("permission", request);
+}
+pub fn close(app: &AppHandle, id: u64) {
+    let state = app.state::<LiveRequests>();
+    let mut queue = state.0.lock().unwrap();
+    let before = queue.len();
+    queue.retain(|r| r.id != id);
+    if before != queue.len() {
+        let _ = app.emit("permission-closed", id);
+    }
+}
+#[tauri::command]
+pub fn get_pending_permissions(state: tauri::State<LiveRequests>) -> Vec<PermissionRequest> {
+    state.0.lock().unwrap().clone()
 }

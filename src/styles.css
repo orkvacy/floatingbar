@@ -1308,3 +1308,10 @@ button.agenda__title:hover { text-decoration: underline; }
 .codex__folder { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 11px; }
 .codex__folder input { min-width: 0; border: 1px solid #333; border-radius: 7px; background: #161616; color: var(--fg); padding: 6px 8px; font: inherit; user-select: text; }
 .codex__reply { max-height: 210px; min-height: 28px; overflow-y: auto; }
+
+.ai__settings { margin-top: 4px; color: var(--muted); font-size: 11px; }
+.ai__settings summary { cursor: pointer; }
+.ai__settings p { line-height: 1.5; }
+.ai__settings label { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+.ai__settings button { border: 1px solid #393939; border-radius: 8px; padding: 7px 9px; color: var(--fg); background: #1c1c1e; cursor: pointer; }
+.ai__settings button:disabled { opacity: .5; cursor: default; }

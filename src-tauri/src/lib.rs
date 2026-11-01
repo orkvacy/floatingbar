@@ -11,6 +11,11 @@ mod media;
 mod notify;
 mod permission;
 mod permission_provider;
+mod hook_http;
+mod hook_config;
+mod permission_bridge;
+mod profile;
+mod preferences;
 mod placement;
 mod secure_store;
 mod shortcuts;
@@ -132,26 +137,31 @@ async fn drag_window_header(window: WebviewWindow, grab_x: f64, grab_y: f64, hea
 // Async so waiting on the Claude app never blocks the UI thread.
 #[tauri::command]
 async fn claude_chats(app: AppHandle) -> Result<claude_app::ChatList, String> {
+    if profile::test_dir().is_some() { return Ok(claude_app::ChatList{mode:"chat".into(),chats:vec!["Percakapan uji".into()],current:None}); }
     claude_app::list(&app)
 }
 
 #[tauri::command]
 fn claude_set_mode(app: AppHandle, mode: String) {
+    if profile::test_dir().is_some(){return;}
     claude_app::set_mode(&app, mode);
 }
 
 #[tauri::command]
 fn claude_open(app: AppHandle, chat: Option<String>) {
+    if profile::test_dir().is_some(){let _=app.emit("claude-history",serde_json::json!({"messages":[{"role":"claude","text":"Riwayat uji terisolasi."}],"working":false,"error":null}));return;}
     claude_app::open(&app, chat);
 }
 
 #[tauri::command]
 fn claude_send(app: AppHandle, chat: Option<String>, prompt: String, paste_image: bool) {
+    if profile::test_dir().is_some(){let _=app.emit("claude-history",serde_json::json!({"messages":[{"role":"user","text":prompt},{"role":"claude","text":"Balasan fixture uji terisolasi."}],"working":false,"error":null}));return;}
     claude_app::send_prompt(&app, chat, prompt, paste_image);
 }
 
 #[tauri::command]
 fn open_in_claude(prompt: String) -> Result<(), String> {
+    if profile::test_dir().is_some(){return Err("Tautan aplikasi dinonaktifkan dalam mode uji".into());}
     ask::open_in_app(&prompt)
 }
 
@@ -160,7 +170,9 @@ async fn answer_permission(app: AppHandle, id: u64, decision: permission::Decisi
     if id >= codex_rpc::ID_BASE {
         codex_app::answer(app, id, decision).await
     } else if id >= ui_permission::ID_BASE {
-        ui_permission::answer(app, id, decision).await
+        ui_permission::answer(app.clone(), id, decision).await?;
+        permission::close(&app,id);
+        Ok(())
     } else {
         permission::answer(&app, id, decision)
     }
@@ -192,16 +204,19 @@ fn playing_app(state: &AppState) -> Option<String> {
 // Async so Core Audio runs on a worker thread instead of the UI thread.
 #[tauri::command]
 async fn get_volume(state: State<'_, AppState>) -> Result<audio::VolumeInfo, String> {
+    if profile::test_dir().is_some(){return Ok(audio::VolumeInfo{level:0.5,muted:false,scope:"system"});}
     audio::get(playing_app(&state).as_deref())
 }
 
 #[tauri::command]
 async fn set_volume(state: State<'_, AppState>, level: f32) -> Result<audio::VolumeInfo, String> {
+    if profile::test_dir().is_some(){return Ok(audio::VolumeInfo{level:level.clamp(0.0,1.0),muted:false,scope:"system"});}
     audio::set_level(playing_app(&state).as_deref(), level)
 }
 
 #[tauri::command]
 async fn set_muted(state: State<'_, AppState>, muted: bool) -> Result<audio::VolumeInfo, String> {
+    if profile::test_dir().is_some(){return Ok(audio::VolumeInfo{level:0.5,muted,scope:"system"});}
     audio::set_muted(playing_app(&state).as_deref(), muted)
 }
 
@@ -251,7 +266,7 @@ fn place_window(window: &WebviewWindow, anchor: (f64, f64)) -> tauri::Result<()>
 }
 
 fn position_file(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|d| d.join("position.json"))
+    profile::config(app).ok().map(|d| d.join("position.json"))
 }
 
 /// Restore the position the user dragged the pill to, unless that spot is no
@@ -418,18 +433,32 @@ fn spawn_hover_loop(app: AppHandle, window: WebviewWindow) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut context=tauri::generate_context!();
+    let test=profile::test_dir();
+    if let Some(dir)=test.as_ref() {
+        context.config_mut().app.app_directories_override=Some(tauri::utils::config::AppDirectoriesOverride::Root(dir.clone().into()));
+        if let Some(window)=context.config_mut().app.windows.first_mut() {
+            window.data_directory=None;
+            window.title="FloatingBar — uji terisolasi".into();
+        }
+    }
+    let mut builder=tauri::Builder::default();
+    if test.is_none() { builder=builder
         // Launching again (e.g. from the Start menu while autostart already
         // ran it) just brings the pill back instead of opening a second one.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             tray::set_visible(app, true);
-        }))
+        })); }
+    builder
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
         .manage(AppState::default())
         .manage(permission::Pending::default())
+        .manage(permission::HookState::default())
+        .manage(permission::LiveRequests::default())
+        .manage(preferences::AppPreferences::default())
         .manage(codex_app::Codex::default())
         .manage(discord::DiscordManager::default())
         .manage(calendar::CalendarManager::default())
@@ -442,6 +471,12 @@ pub fn run() {
             get_window_anchor,
             drag_window_header,
             answer_permission,
+            permission::get_pending_permissions,
+            permission::get_hook_status,
+            permission::configure_permission_hook,
+            preferences::get_app_preferences,
+            preferences::set_experimental_adapters,
+            get_test_mode,
             open_in_claude,
             claude_chats,
             claude_set_mode,
@@ -488,20 +523,40 @@ pub fn run() {
         })
         .setup(|app| {
             let window = app.get_webview_window("main").expect("main window");
+            preferences::load(app.handle());
             restore_position(app.handle(), &window)?;
+            if profile::test_dir().is_some() && !position_file(app.handle()).is_some_and(|p|p.exists()) { window.set_position(PhysicalPosition::new(120,200))?; }
             window.show()?;
             tray::create(app.handle())?;
             spawn_position_saver(app.handle().clone());
-            spawn_media_loop(app.handle().clone());
-            spawn_battery_loop(app.handle().clone());
-            spawn_notification_loop(app.handle().clone());
+            if profile::test_dir().is_none() {
+                spawn_media_loop(app.handle().clone());
+                spawn_battery_loop(app.handle().clone());
+                spawn_notification_loop(app.handle().clone());
+            }
             permission::spawn_server(app.handle().clone());
-            ui_permission::spawn(app.handle());
-            claude_app::spawn(app.handle());
-            discord::spawn(app.handle().clone());
+            if profile::test_dir().is_none() {
+                ui_permission::spawn(app.handle());
+                claude_app::spawn(app.handle());
+                discord::spawn(app.handle().clone());
+            }
             spawn_hover_loop(app.handle().clone(), window);
             Ok(())
         })
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running FloatingBar");
+}
+
+#[tauri::command]
+fn get_test_mode() -> bool { profile::test_dir().is_some() }
+
+/// Hook mode runs before creating a WebView, tray icon, or singleton.
+pub fn handle_cli() -> bool {
+    let args:Vec<_>=std::env::args().skip(1).collect();
+    if let Some(index)=args.iter().position(|a|a=="--test-profile") {
+        let Some(path)=args.get(index+1).map(PathBuf::from) else {std::process::exit(2)};
+        if !path.is_absolute() || !path.file_name().is_some_and(|s|s.to_string_lossy().starts_with("floatingbar-test-")) {std::process::exit(2);}
+        std::env::set_var("FLOATINGBAR_TEST_MODE","1");std::env::set_var("FLOATINGBAR_TEST_PROFILE",path);
+    }
+    if args.iter().any(|a|a=="--permission-hook") { permission_bridge::run(); true } else { false }
 }

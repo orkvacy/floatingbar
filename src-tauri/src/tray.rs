@@ -30,7 +30,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         app,
         "autostart",
         "Jalan saat Windows start",
-        true,
+        crate::profile::test_dir().is_none(),
         autostart_on,
         None::<&str>,
     )?;
