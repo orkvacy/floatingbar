@@ -21,6 +21,11 @@ const WAIT: Duration = Duration::from_secs(55);
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRequest {
     pub id: u64,
+    pub provider: String,
+    pub provider_name: String,
+    pub can_answer: bool,
+    #[serde(skip_serializing_if="Option::is_none")]
+    pub can_allow: Option<bool>,
     pub tool: String,
     /// The command, file or URL the tool wants to use.
     pub summary: String,
@@ -76,9 +81,24 @@ fn handle(app: &AppHandle, body: &str) -> String {
     let tool = input["tool_name"].as_str().unwrap_or("Tool").to_string();
     let project = input["cwd"]
         .as_str()
-        .map(|c| c.trim_end_matches(['\\', '/']).rsplit(['\\', '/']).next().unwrap_or(c).to_string())
+        .map(|c| {
+            c.trim_end_matches(['\\', '/'])
+                .rsplit(['\\', '/'])
+                .next()
+                .unwrap_or(c)
+                .to_string()
+        })
         .unwrap_or_default();
-    let request = PermissionRequest { id, summary: summarize(&tool, &input["tool_input"]), tool, project };
+    let request = PermissionRequest {
+        id,
+        provider: "claude-code".into(),
+        provider_name: "Claude Code".into(),
+        can_answer: true,
+        can_allow: None,
+        summary: summarize(&tool, &input["tool_input"]),
+        tool,
+        project,
+    };
     let _ = app.emit("permission", request);
 
     let decision = rx.recv_timeout(WAIT).unwrap_or(Decision::Ask);
@@ -90,13 +110,20 @@ fn handle(app: &AppHandle, body: &str) -> String {
         Decision::Allow => json!({ "behavior": "allow" }),
         Decision::Deny => json!({ "behavior": "deny", "message": "Ditolak lewat FloatingBar" }),
     };
-    json!({ "hookSpecificOutput": { "hookEventName": "PermissionRequest", "decision": behavior } }).to_string()
+    json!({ "hookSpecificOutput": { "hookEventName": "PermissionRequest", "decision": behavior } })
+        .to_string()
 }
 
-pub fn answer(app: &AppHandle, id: u64, decision: Decision) {
-    if let Some(tx) = app.state::<Pending>().waiting.lock().unwrap().remove(&id) {
-        let _ = tx.send(decision);
-    }
+pub fn answer(app: &AppHandle, id: u64, decision: Decision) -> Result<(), String> {
+    let tx = app
+        .state::<Pending>()
+        .waiting
+        .lock()
+        .unwrap()
+        .remove(&id)
+        .ok_or("Permintaan sudah berakhir")?;
+    tx.send(decision)
+        .map_err(|_| "Permintaan sudah berakhir".into())
 }
 
 pub fn spawn_server(app: AppHandle) {

@@ -3,10 +3,14 @@ mod audio;
 mod battery;
 mod calendar;
 mod claude_app;
+mod codex_app;
+mod codex_history;
+mod codex_rpc;
 mod discord;
 mod media;
 mod notify;
 mod permission;
+mod permission_provider;
 mod placement;
 mod secure_store;
 mod shortcuts;
@@ -152,11 +156,13 @@ fn open_in_claude(prompt: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn answer_permission(app: AppHandle, id: u64, decision: permission::Decision) {
-    if id >= ui_permission::ID_BASE {
-        ui_permission::answer(&app, id, decision);
+async fn answer_permission(app: AppHandle, id: u64, decision: permission::Decision) -> Result<(), String> {
+    if id >= codex_rpc::ID_BASE {
+        codex_app::answer(app, id, decision).await
+    } else if id >= ui_permission::ID_BASE {
+        ui_permission::answer(app, id, decision).await
     } else {
-        permission::answer(&app, id, decision);
+        permission::answer(&app, id, decision)
     }
 }
 
@@ -424,6 +430,7 @@ pub fn run() {
         ))
         .manage(AppState::default())
         .manage(permission::Pending::default())
+        .manage(codex_app::Codex::default())
         .manage(discord::DiscordManager::default())
         .manage(calendar::CalendarManager::default())
         .invoke_handler(tauri::generate_handler![
@@ -440,6 +447,10 @@ pub fn run() {
             claude_set_mode,
             claude_open,
             claude_send,
+            codex_app::codex_threads,
+            codex_app::codex_read,
+            codex_app::codex_send,
+            codex_app::codex_interrupt,
             get_shortcuts,
             open_shortcut,
             edit_shortcuts,

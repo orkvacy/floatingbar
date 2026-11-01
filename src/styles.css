@@ -269,10 +269,10 @@ button.agenda__title:hover { text-decoration: underline; }
 }
 
 .permission__summary {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  display: block;
+  overflow: auto;
+  max-height: 210px;
+  white-space: pre-wrap;
   padding: 8px 10px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.07);
@@ -1299,3 +1299,12 @@ button.agenda__title:hover { text-decoration: underline; }
   width: 14px;
   height: 14px;
 }
+
+.permission__hint, .permission__error { font-size: 11px; line-height: 1.5; margin: 0; color: var(--muted); }
+.permission__error { color: var(--red); }
+.permission__actions button:disabled { opacity: .5; cursor: wait; }
+
+.ai__provider { width: 100%; border: 1px solid #333; border-radius: 8px; padding: 5px 8px; background: #181818; color: var(--fg); font: inherit; font-size: 12px; }
+.codex__folder { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 11px; }
+.codex__folder input { min-width: 0; border: 1px solid #333; border-radius: 7px; background: #161616; color: var(--fg); padding: 6px 8px; font: inherit; user-select: text; }
+.codex__reply { max-height: 210px; min-height: 28px; overflow-y: auto; }

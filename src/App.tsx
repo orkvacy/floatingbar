@@ -46,6 +46,8 @@ import { useTodos } from "./lib/todos";
 import { useCalendar } from "./lib/calendar";
 import { TodoPanel } from "./components/TodoPanel";
 import { CalendarPage } from "./components/CalendarPage";
+import { CodexPanel } from "./components/CodexPanel";
+import { useCodex } from "./lib/codex";
 
 const spring = { type: "spring", stiffness: 420, damping: 32, mass: 0.9 } as const;
 
@@ -53,7 +55,7 @@ const spring = { type: "spring", stiffness: 420, damping: 32, mass: 0.9 } as con
 const PAGES = [
   { id: "notifications", label: "Notifikasi" },
   { id: "media", label: "Musik" },
-  { id: "claude", label: "Claude" },
+  { id: "claude", label: "AI" },
   { id: "calendar", label: "Agenda" },
 ] as const;
 const HOME_PAGE = 1;
@@ -89,7 +91,7 @@ export default function App() {
     clear: clearNotifications,
     error: notifyError,
   } = useNotifications();
-  const { permission, waiting, answer } = usePermissions();
+  const { permission, waiting, answer, answering: answeringPermission, error: permissionError } = usePermissions();
   const drag = useDragWindow();
   const { volume, setLevel, nudge, setMuted } = useVolume(media !== null, media?.appId);
   const pillRef = useRef<HTMLDivElement>(null);
@@ -130,12 +132,17 @@ export default function App() {
 
   // Claude's own toast for a request already shown here would just repeat it.
   useEffect(() => {
-    if (permission && notification?.app === "Claude") dismiss();
+    if (!permission || !notification) return;
+    const source = notification.app.toLowerCase();
+    const openai = ["codex", "codex-rpc", "chatgpt"].includes(permission.provider);
+    if (source === permission.providerName.toLowerCase() || (openai && ["codex", "chatgpt"].includes(source))) dismiss();
   }, [permission, notification, dismiss]);
 
   // Stay open while typing a prompt, even after the cursor wanders off.
   // (The select counts as typing: its dropdown takes focus.)
   const ask = useAsk();
+  const codex = useCodex();
+  const [aiProvider, setAiProvider] = useState<"claude" | "codex">(demo === "codex" ? "codex" : "claude");
   const [typing, setTyping] = useState(false);
   const [pager, setPager] = useState({ index: HOME_PAGE, dir: 0 });
   const page = PAGES[pager.index].id;
@@ -149,7 +156,7 @@ export default function App() {
   const demoOpen = !!demo && demo !== "compact" && demo !== "discord" && demo !== "discord-compact";
   const calendar = useCalendar(page === "calendar" && !showTodo && !showDC && (hover || peek || typing || demoOpen));
   // Stay open for active editing, OAuth, and explicit overlays.
-  const pinned = drag.dragging || demoOpen || (showDC ? discordPinned : typing || ask.busy || calendar.connecting || showTodo);
+  const pinned = drag.dragging || demoOpen || (showDC ? discordPinned : typing || ask.busy || codex.busy || calendar.connecting || showTodo);
 
   // Auto-open Discord VC when joining voice, auto-close when leaving
   const wasInVoice = useRef(discord.inVoice);
@@ -188,7 +195,7 @@ export default function App() {
     document.body.classList.add("demo");
     if (new URLSearchParams(window.location.search).get("capture") === "1") document.body.classList.add("capture");
     if (demo !== "compact" && demo !== "discord-compact") setHoverNow(true);
-    const demoPage: Record<string, number> = { notifications: 0, music: 1, claude: 2, calendar: 3, "calendar-setup": 3 };
+    const demoPage: Record<string, number> = { notifications: 0, music: 1, claude: 2, codex: 2, calendar: 3, "calendar-setup": 3 };
     if (demo in demoPage) setPager({ index: demoPage[demo], dir: 0 });
     if (demo === "todos") setShowTodo(true);
     if (demo === "discord" || demo === "discord-compact") setShowDC(true);
@@ -214,7 +221,7 @@ export default function App() {
       return;
     }
     // Scrolling up and down nudges the volume, like a hardware knob.
-    if (!horizontal && volume && (mode !== "open" || (page === "media" && !showDC && !showTodo))) {
+    if (!horizontal && volume && (mode === "compact" || (mode === "open" && page === "media" && !showDC && !showTodo))) {
       nudge(e.deltaY < 0 ? 0.05 : -0.05);
     }
   };
@@ -274,7 +281,7 @@ export default function App() {
         <AnimatePresence mode="popLayout" initial={false}>
           {mode === "permission" && permission ? (
             <motion.div key={`p${permission.id}`} className="open" {...fade}>
-              <Permission request={permission} waiting={waiting} onAnswer={answer} />
+              <Permission request={permission} waiting={waiting} onAnswer={answer} answering={answeringPermission} error={permissionError} />
             </motion.div>
           ) : mode === "notification" && notification ? (
             <motion.div key={`n${notification.id}`} className="open" {...fade}>
@@ -328,7 +335,12 @@ export default function App() {
                         onClear={clearNotifications}
                       />
                     ) : page === "claude" ? (
-                      <ClaudePage ask={ask} onTyping={setTyping} />
+                      <div className="ask">
+                        <select className="ai__provider" aria-label="Aplikasi AI" value={aiProvider} onChange={(e) => setAiProvider(e.target.value as "claude" | "codex")}>
+                          <option value="claude">Claude desktop</option><option value="codex">ChatGPT / Codex</option>
+                        </select>
+                        {aiProvider === "claude" ? <ClaudePage ask={ask} onTyping={setTyping} /> : <CodexPanel codex={codex} onTyping={setTyping} />}
+                      </div>
                     ) : page === "calendar" ? (
                       <CalendarPage calendar={calendar} now={now} onTyping={setTyping} />
                     ) : media ? (
@@ -634,15 +646,19 @@ function Permission({
   request,
   waiting,
   onAnswer,
+  answering,
+  error,
 }: {
   request: PermissionRequest;
   waiting: number;
+  answering: boolean;
+  error: string | null;
   onAnswer: (id: number, decision: PermissionDecision) => void;
 }) {
   return (
     <div className="permission">
       <div className="permission__head">
-        <span className="permission__badge">Claude minta izin</span>
+        <span className="permission__badge">{request.providerName} minta izin</span>
         <span className="notification__app">
           {request.tool}
           {request.project && ` · ${request.project}`}
@@ -650,16 +666,18 @@ function Permission({
         </span>
       </div>
       <code className="permission__summary">{request.summary}</code>
-      <div className="permission__actions">
-        <button className="permission__ask" onClick={() => onAnswer(request.id, "ask")}>
-          Buka di Claude
-        </button>
-        <button className="permission__deny" onClick={() => onAnswer(request.id, "deny")}>
+        {!request.canAnswer && <p className="permission__hint">Jawab langsung di {request.providerName}. Kontrol Izinkan/Tolak belum tersedia untuk aplikasi ini.</p>}
+      {error && <p className="permission__error" role="alert">{error}</p>}
+      <div className="permission__actions" aria-busy={answering}>
+        {request.provider !== "codex-rpc" && <button className="permission__ask" disabled={answering} onClick={() => onAnswer(request.id, "ask")}>
+          {answering ? "Memproses…" : `Buka ${request.providerName}`}
+        </button>}
+        {request.canAnswer && <><button className="permission__deny" disabled={answering} onClick={() => onAnswer(request.id, "deny")}>
           Tolak
         </button>
-        <button className="permission__allow" onClick={() => onAnswer(request.id, "allow")}>
+        <button className="permission__allow" disabled={answering || request.canAllow === false} onClick={() => onAnswer(request.id, "allow")}>
           Izinkan
-        </button>
+        </button></>}
       </div>
     </div>
   );

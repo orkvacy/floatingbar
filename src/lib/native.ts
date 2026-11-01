@@ -70,12 +70,21 @@ const SAMPLE_NOTIFICATIONS: NotificationInfo[] = [
   { id: 3, app: "Claude", title: "Trip planning", body: "Claude has finished responding", icon: null },
 ];
 
-const SAMPLE_PERMISSION: PermissionRequest = {
-  id: 1,
-  tool: "Bash",
-  summary: 'cd "D:/projects/my-app" && git status && bun run build',
-  project: "my-app",
-};
+const demoProvider = new URLSearchParams(window.location.search).get("provider") || "claude-code";
+const permissionProviders: Record<string, string> = { "codex-rpc": "ChatGPT / Codex", "claude-code": "Claude Code", claude: "Claude", codex: "ChatGPT / Codex", chatgpt: "ChatGPT / Codex", antigravity: "Antigravity" };
+function samplePermission(provider: string, id: number): PermissionRequest {
+  const known = Object.prototype.hasOwnProperty.call(permissionProviders, provider) ? provider : "claude-code";
+  return {
+    id, provider: known, providerName: permissionProviders[known],
+    canAnswer: ["claude", "claude-code", "codex-rpc"].includes(known), tool: "Bash",
+    summary: 'cd "D:/projects/my-app" && git status && bun run build', project: "my-app",
+  };
+}
+const SAMPLE_PERMISSION = samplePermission(demoProvider, 1);
+const demoPermissionQueue = new URLSearchParams(window.location.search).get("queue");
+const SAMPLE_PERMISSIONS = demoPermissionQueue
+  ? demoPermissionQueue.split(",").slice(0, 10).map((provider, index) => samplePermission(provider, index + 1))
+  : [SAMPLE_PERMISSION];
 
 /** Subscribes to a value the Rust side pushes as events, seeded by a getter. */
 function useNative<T>(event: string, getter: string, mock: T): [T, (v: T) => void] {
@@ -183,6 +192,10 @@ export function useVolume(active: boolean, appId: string | undefined) {
 
 export type PermissionRequest = {
   id: number;
+  provider: string;
+  providerName: string;
+  canAnswer: boolean;
+  canAllow?: boolean;
   tool: string;
   summary: string;
   project: string;
@@ -190,21 +203,24 @@ export type PermissionRequest = {
 
 export type PermissionDecision = "allow" | "deny" | "ask";
 
-/** Claude Code permission prompts forwarded by the PermissionRequest hook, oldest first. */
+/** Provider-tagged permission queue: desktop adapters and the Claude Code hook. */
 export function usePermissions() {
-  const [queue, setQueue] = useState<PermissionRequest[]>(demo === "permission" ? [SAMPLE_PERMISSION] : []);
+  const [queue, setQueue] = useState<PermissionRequest[]>(demo === "permission" ? SAMPLE_PERMISSIONS : []);
+  const [answering, setAnswering] = useState(false);
+  const [error, setError] = useState<{ id: number; message: string } | null>(null);
+  const pendingAnswer = useRef(false);
   const remove = useCallback((id: number) => setQueue((q) => q.filter((p) => p.id !== id)), []);
 
   useEffect(() => {
     if (!isTauri) {
       // In a browser, call mockPermission() from the console to preview a prompt.
       Object.assign(window, {
-        mockPermission: () => setQueue((q) => [...q, { ...SAMPLE_PERMISSION, id: Date.now() }]),
+        mockPermission: (provider = "claude-code") => setQueue((q) => [...q, samplePermission(provider, Date.now())]),
       });
       return;
     }
-    const added = listen<PermissionRequest>("permission", (e) => setQueue((q) => [...q, e.payload]));
-    // Timed out on the Rust side: Claude has fallen back to its own prompt.
+    const added = listen<PermissionRequest>("permission", (e) => setQueue((q) => q.some((p) => p.id === e.payload.id) ? q : [...q, e.payload]));
+    // The source prompt disappeared or the hook fell back to the app.
     const closed = listen<number>("permission-closed", (e) => remove(e.payload));
     return () => {
       added.then((f) => f());
@@ -213,14 +229,20 @@ export function usePermissions() {
   }, [remove]);
 
   const answer = useCallback(
-    (id: number, decision: PermissionDecision) => {
-      remove(id);
-      if (isTauri) invoke("answer_permission", { id, decision }).catch(console.error);
+    async (id: number, decision: PermissionDecision) => {
+      if (pendingAnswer.current) return;
+      pendingAnswer.current = true; setAnswering(true); setError(null);
+      try {
+        if (isTauri) await invoke("answer_permission", { id, decision });
+        remove(id);
+      } catch (err) { setError({ id, message: String(err) }); }
+      finally { pendingAnswer.current = false; setAnswering(false); }
     },
     [remove],
   );
 
-  return { permission: queue[0] ?? null, waiting: queue.length, answer };
+  return { permission: queue[0] ?? null, waiting: queue.length, answer, answering, error: error?.id === queue[0]?.id ? error?.message ?? null : null };
+
 }
 
 export type ClaudeMode = "chat" | "code" | "";

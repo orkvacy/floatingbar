@@ -1,6 +1,8 @@
 # Menyiapkan rilis FloatingBar
 
-Rilis yang disiapkan: **0.2.0**. Mengikuti rilis sebelumnya: tag ringan `v0.2.0`, judul **FloatingBar v0.2.0**, ditandai **pre-release**, dengan installer NSIS dan MSI. Catatan berbahasa Inggris mengikuti susunan Highlights / Install / Notes pada v0.1.0.
+Rilis yang disiapkan: **0.3.0**. Mengikuti rilis sebelumnya: tag ringan `v0.3.0`, judul **FloatingBar v0.3.0**, ditandai **pre-release**, dengan installer NSIS dan MSI. Catatan berbahasa Inggris mengikuti susunan Highlights / Install / Notes pada v0.1.0.
+
+Label UI untuk host OpenAI disatukan sebagai **ChatGPT / Codex**. Implementasi chat memakai Codex CLI/App Server dan cakupan yang diuji dicatat di [integrasi AI](AI-PERMISSIONS.md).
 
 ## Sebelum commit
 
@@ -11,7 +13,8 @@ Screenshot README menggunakan data demo fiktif. Kredensial runtime berada di fol
 ```powershell
 bun install --frozen-lockfile
 bun run build
-cargo check --manifest-path src-tauri/Cargo.toml
+cargo build --manifest-path src-tauri/Cargo.toml
+powershell -ExecutionPolicy Bypass -File scripts/test-codex.ps1
 python scripts/check-release.py
 bun run tauri build
 python scripts/check-release.py --artifact src-tauri/target/release/floatingbar.exe
@@ -26,21 +29,21 @@ Periksa diff sebelum staging; jangan sertakan `.env`, JSON OAuth unduhan, token,
 Contoh pesan mengikuti Conventional Commits repository:
 
 ```powershell
-git commit -m "feat(app): add daily planning and improve floating controls"
-git tag v0.2.0
+git commit -m "feat(ai): add Codex chat panel and permission bridge"
+git tag v0.3.0
 git push origin main
-git push origin v0.2.0
+git push origin v0.3.0
 ```
 
-Jalankan setelah meninjau dan melakukan staging file yang dipilih. Tag dibuat **setelah commit**, agar menunjuk kode rilis baru. Jangan mengganti tag v0.1.0 atau melakukan force push.
+Jalankan setelah meninjau dan melakukan staging file yang dipilih. Tag dibuat **setelah commit**, agar menunjuk kode rilis baru. Jangan mengganti tag rilis lama atau melakukan force push.
 
 ## GitHub Release
 
-Buat release untuk tag `v0.2.0`, judul **FloatingBar v0.2.0**, centang **Set as a pre-release**, dan salin isi [catatan rilis](releases/v0.2.0.md) tanpa judul Markdown pertama.
+Buat release untuk tag `v0.3.0`, judul **FloatingBar v0.3.0**, centang **Set as a pre-release**, dan salin isi [catatan rilis](releases/v0.3.0.md) tanpa judul Markdown pertama.
 
 Lampirkan hasil build baru:
 
-- `src-tauri/target/release/bundle/nsis/FloatingBar_0.2.0_x64-setup.exe`
-- `src-tauri/target/release/bundle/msi/FloatingBar_0.2.0_x64_en-US.msi`
+- `src-tauri/target/release/bundle/nsis/FloatingBar_0.3.0_x64-setup.exe`
+- `src-tauri/target/release/bundle/msi/FloatingBar_0.3.0_x64_en-US.msi`
 
-Installer dipasang sebagai asset release, bukan di-commit ke Git. Source 0.2.0 tidak membawa kredensial Discord; setiap pengguna mengatur integrasinya sendiri.
+Installer dipasang sebagai asset release, bukan di-commit ke Git. Source 0.3.0 tidak membawa kredensial Discord; setiap pengguna mengatur integrasinya sendiri.

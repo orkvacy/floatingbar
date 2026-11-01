@@ -1,6 +1,6 @@
 # FloatingBar
 
-**Jawab Yes/No Claude langsung dari floating bar Windows.** Tinjau permintaan izin, lalu klik **Izinkan** atau **Tolak** tanpa berpindah jendela. FloatingBar juga menyediakan panel Claude, kontrol voice Discord, to-do list, agenda Google Calendar, musik, dan notifikasi.
+**Jawab Yes/No AI langsung dari floating bar Windows.** Tinjau permintaan izin, lalu klik **Izinkan** atau **Tolak** tanpa berpindah jendela. FloatingBar juga menyediakan panel Claude, kontrol voice Discord, to-do list, agenda Google Calendar, musik, dan notifikasi.
 
 Dibangun dengan Tauri 2 (Rust) dan React + TypeScript.
 
@@ -47,6 +47,7 @@ Dibangun dengan Tauri 2 (Rust) dan React + TypeScript.
 - [Memakai FloatingBar](#memakai-floatingbar)
 - [Panel Discord](#panel-discord)
 - [To-do list dan Google Calendar](#to-do-list-dan-google-calendar)
+- [Izin lintas aplikasi AI](#izin-lintas-aplikasi-ai-preview)
 - [Integrasi Claude](#integrasi-claude)
 - [Opsional: notifikasi hanya di FloatingBar](#opsional-notifikasi-hanya-di-floatingbar)
 - [Konfigurasi dan file data](#konfigurasi-dan-file-data)
@@ -76,6 +77,7 @@ Dibangun dengan Tauri 2 (Rust) dan React + TypeScript.
 
 ## Kebutuhan
 
+- Untuk panel opsional **ChatGPT / Codex**: Codex CLI sudah terpasang dan login.
 - Windows 10 atau 11 (dikembangkan dan diuji di Windows 11).
 - Microsoft Edge WebView2 Runtime (sudah ada di Windows 11; installer menambahkannya di Windows 10 bila belum ada).
 - Untuk fitur Claude: [aplikasi Claude desktop](https://claude.ai/download) dengan antarmuka berbahasa Inggris.
@@ -113,7 +115,7 @@ Pill yang membesar punya empat halaman, dari kiri ke kanan:
 
 1. **Notifikasi**: 20 notifikasi terakhir lengkap dengan ikon aplikasi dan waktunya. Klik salah satu untuk menghapusnya, atau *Hapus semua*. Daftar ini hanya disimpan di memori dan kosong lagi setelah aplikasi dibuka ulang.
 2. **Musik**: cover, judul, artis, progres, tombol sebelumnya/putar-jeda/berikutnya, serta slider volume dengan tombol mute. Halaman ini yang tampil pertama.
-3. **Claude**: lihat [Integrasi Claude](#integrasi-claude).
+3. **AI**: pilih Claude desktop atau ChatGPT / Codex; lihat [integrasi AI](#izin-lintas-aplikasi-ai-preview).
 4. **Agenda**: acara hari ini dari kalender Google yang dipilih (login opsional).
 
 Header di setiap halaman menampilkan jam, tanggal, shortcut-mu, dan persentase baterai.
@@ -173,6 +175,14 @@ Setup satu kali:
 FloatingBar memakai OAuth Authorization Code + PKCE dengan callback loopback lokal dan hanya meminta scope baca `calendar.events.readonly` dan `calendar.calendarlist.readonly`. Pengguna versi lama cukup menekan **Perbarui izin Google** dan menyetujui tambahan izin baca daftar kalender; file JSON tidak perlu dipilih lagi. Jika login ulang dibatalkan, koneksi lama tetap tersimpan. Kredensial dan token disimpan terenkripsi dengan Windows DPAPI di `%APPDATA%\id.orkvacy.floatingbar\google-calendar.dat`; token tidak dikirim ke frontend atau disimpan dalam source. **Kelola koneksi → Putuskan koneksi** menghapus token lokal. Untuk mencabut akses Google sepenuhnya, gunakan **Kelola izin di Google**. Google dapat meminta login ulang ketika izin dicabut atau token aplikasi Testing berakhir.
 
 Integrasi akun hanya berjalan pada aplikasi desktop. Pratinjau `bun run dev` dapat menggunakan `?demo=calendar` untuk agenda contoh dan `?demo=todos` untuk panel tugas. Contoh agenda bukan data dari akun Google.
+
+## Izin lintas aplikasi AI (preview)
+
+Halaman ketiga, **AI**, memilih Claude atau **ChatGPT / Codex**. Codex memakai App Server resmi untuk daftar percakapan, baca riwayat, kirim prompt teks, balasan streaming, dan Izinkan/Tolak pada sesi FloatingBar. Percakapan lama dibaca saja; mengirim membuat salinan sesi agar chat asli tetap utuh. Codex CLI harus terpasang dan sudah login. Pilih folder kerja untuk sesi baru. Tes backend langsung mencakup chat, izin yang ditolak, dan izin sekali pakai yang menjalankan perintah output sederhana.
+
+![Panel Codex dengan data demo fiktif](docs/screenshots/codex.png)
+
+Adapter UI Automation **Codex desktop, ChatGPT, dan Antigravity** masih eksperimental dan menyediakan **Buka aplikasi** untuk prompt yang dikenali. Persetujuan sesi lain yang sudah berjalan tidak otomatis dialihkan ke App Server FloatingBar. Panel Antigravity belum tersedia. Daftar pada pilihan ChatGPT / Codex berisi sesi Codex CLI. Lihat [status dukungan, setup, dan batas pengujian](docs/AI-PERMISSIONS.md).
 
 ## Integrasi Claude
 
@@ -298,6 +308,7 @@ Kalau isi file bukan JSON yang valid, daftar default yang ditampilkan sampai fil
 
 ## Privasi dan keamanan
 
+- **Codex**: prompt dan konteks salinan percakapan dikirim oleh CLI ke penyedia model dalam konfigurasi Codex saat Anda menekan kirim. FloatingBar menyimpan tampilan sementara di memori; riwayat dan autentikasi dikelola CLI di luar repository.
 - **Discord**: komunikasi voice memakai IPC Discord lokal; pertukaran token OAuth menghubungi Discord melalui HTTPS. Token lama plaintext dimigrasikan ke format terenkripsi setelah berhasil disimpan.
 - **Penyimpanan WebView**: tugas, pilihan kalender, dan tinggi panel Claude tersimpan lokal. File DPAPI hanya bisa dibuka oleh akun Windows yang sama.
 - **Data lokal tetap di komputermu.** FloatingBar tidak punya telemetri dan tidak mengirim notifikasi, info media, atau percakapan Claude-mu ke mana pun. Integrasi kalender opsional menghubungi Google setelah kamu menghubungkan akun Google.
@@ -434,7 +445,7 @@ Issue dan pull request sangat diterima.
 
 Kalau aplikasi Claude mengubah antarmukanya, label yang dicari FloatingBar dikumpulkan di bagian atas `src-tauri/src/claude_app.rs` dan di `src-tauri/src/ui_permission.rs`.
 
-Panduan maintainer: [rilis dan pemeriksaan sebelum push](docs/RELEASING.md). Catatan rilis yang disiapkan: [v0.2.0](docs/releases/v0.2.0.md).
+Panduan maintainer: [rilis dan pemeriksaan sebelum push](docs/RELEASING.md). Catatan rilis yang disiapkan: [v0.3.0](docs/releases/v0.3.0.md).
 
 ## Lisensi
 

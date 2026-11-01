@@ -23,10 +23,15 @@ def main():
     historical = set()
     for source in ("src-tauri/src/discord.rs", "src/server/discord-bridge.cjs"):
         try:
-            old = git("show", f"HEAD:{source}").decode("utf-8")
-        except (subprocess.CalledProcessError, UnicodeDecodeError):
+            revisions = git("log", "--all", "--format=%H", "-G", "CLIENT_SECRET", "--", source).decode("ascii").splitlines()
+        except subprocess.CalledProcessError:
             continue
-        historical.update(re.findall(r'CLIENT_SECRET[^\n=]*=\s*["\']([^"\']+)["\']', old))
+        for revision in set(["HEAD", *revisions]):
+            try:
+                old = git("show", f"{revision}:{source}").decode("utf-8")
+            except (subprocess.CalledProcessError, UnicodeDecodeError):
+                continue
+            historical.update(re.findall(r'CLIENT_SECRET[^\n=]*=\s*["\']([^"\']+)["\']', old))
     needles = set()
     for value in historical:
         if len(value) > 12 and not value.startswith("process."):

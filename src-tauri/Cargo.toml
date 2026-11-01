@@ -1,6 +1,6 @@
 [package]
 name = "floatingbar"
-version = "0.2.0"
+version = "0.3.0"
 description = "A Dynamic Island for Windows"
 license = "MIT"
 repository = "https://github.com/orkvacy/floatingbar"
@@ -39,6 +39,7 @@ windows = { version = "0.58", features = [
   "Win32_Media_Audio_Endpoints",
   "Win32_Security_Cryptography",
   "Win32_Storage_FileSystem",
+  "Win32_Storage_Packaging_Appx",
   "Win32_System_Com",
   "Win32_System_Com_StructuredStorage",
   "Win32_System_IO",

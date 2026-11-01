@@ -1,6 +1,6 @@
 # FloatingBar
 
-**Answer Claude’s Yes/No prompts from a floating bar on Windows.** Review a permission request, then click **Izinkan** (allow) or **Tolak** (deny) without switching windows. FloatingBar also brings together Claude chat, Discord voice controls, to-dos, Google Calendar, music, and notifications.
+**Answer AI permission prompts from a floating bar on Windows.** Review a permission request, then click **Izinkan** (allow) or **Tolak** (deny) without switching windows. FloatingBar also brings together Claude chat, Discord voice controls, to-dos, Google Calendar, music, and notifications.
 
 Built with Tauri 2 (Rust) and React + TypeScript.
 
@@ -47,6 +47,7 @@ Built with Tauri 2 (Rust) and React + TypeScript.
 - [Using FloatingBar](#using-floatingbar)
 - [Discord panel](#discord-panel)
 - [To-do list and Google Calendar](#to-do-list-and-google-calendar)
+- [Multi-app AI permissions](#multi-app-ai-permissions-preview)
 - [Claude integration](#claude-integration)
 - [Optional: show notifications only in FloatingBar](#optional-show-notifications-only-in-floatingbar)
 - [Configuration and data files](#configuration-and-data-files)
@@ -76,6 +77,7 @@ Built with Tauri 2 (Rust) and React + TypeScript.
 
 ## Requirements
 
+- For the optional **ChatGPT / Codex** panel: install and sign in to Codex CLI.
 - Windows 10 or 11 (developed and tested on Windows 11).
 - Microsoft Edge WebView2 Runtime (included with Windows 11; the installer adds it on Windows 10 if missing).
 - For the Claude features: the [Claude desktop app](https://claude.ai/download) with its interface in English.
@@ -113,7 +115,7 @@ The expanded pill has four pages, left to right:
 
 1. **Notifications** — the last 20 notifications with app icon and time. Click one to remove it, or *Hapus semua* to clear them. The list lives in memory only and is empty again after a restart.
 2. **Music** — artwork, title, artist, progress bar, previous/play-pause/next, and a volume slider with mute. This is the page shown first.
-3. **Claude** — see [Claude integration](#claude-integration).
+3. **AI** — choose Claude desktop or ChatGPT / Codex; see [AI permissions](#multi-app-ai-permissions-preview).
 4. **Agenda** — today’s events from selected Google calendars (optional sign-in).
 
 The header on every page shows the clock, date, your shortcuts and the battery level.
@@ -173,6 +175,14 @@ One-time setup:
 The app uses OAuth Authorization Code + PKCE, a local loopback callback, and only the read scopes `calendar.events.readonly` and `calendar.calendarlist.readonly`. Existing users can click **Perbarui izin Google** to authorize calendar-list access without importing their JSON again. Cancelling reauthorization preserves the old connection. Tokens and client credentials are encrypted with Windows DPAPI in `%APPDATA%\id.orkvacy.floatingbar\google-calendar.dat`. Tokens never enter the frontend. **Kelola koneksi → Putuskan koneksi** removes the local token; **Kelola izin di Google** opens Google’s access management page for full revocation. Testing-mode tokens may require reauthorization.
 
 Account integration is desktop-only. Browser previews support `?demo=calendar` with clearly separate sample events and `?demo=todos` for the task panel.
+
+## Multi-app AI permissions (preview)
+
+Page three, **AI**, selects Claude or **ChatGPT / Codex**. Codex uses the official App Server for thread listing, history, text prompts, streamed replies, and Allow/Deny for FloatingBar-owned turns. Existing conversations are read-only; sending forks them to preserve the original. Install and sign in to Codex CLI, then choose a workspace for a new session. Live backend checks covered chat, declined approval, and one-time approval of a simple output command.
+
+![Codex panel with fictional demo data](docs/screenshots/codex.png)
+
+Desktop UI Automation adapters for **ChatGPT / Codex and Antigravity** remain experimental and offer **Open app** for recognized prompts. Approvals from other already-running sessions are not automatically routed to FloatingBar’s App Server connection. The Antigravity chat panel is not implemented. The ChatGPT / Codex selector lists Codex CLI sessions. See [support status, setup, and validation limits](docs/AI-PERMISSIONS.md).
 
 ## Claude integration
 
@@ -298,6 +308,7 @@ If the file contains invalid JSON, the defaults are shown until it's fixed.
 
 ## Privacy and security
 
+- **Codex**: when you send, the CLI submits your prompt and forked conversation context to the model provider configured in Codex. FloatingBar keeps transient UI state in memory; CLI history and authentication remain outside the repository.
 - **Discord**: voice uses local Discord IPC; OAuth token exchange contacts Discord over HTTPS. Legacy plaintext tokens are migrated after encrypted storage succeeds.
 - **WebView storage**: to-dos, selected calendars, and Claude panel height remain local. DPAPI files can only be decrypted by the same Windows account.
 - **Local data stays on your computer.** FloatingBar has no telemetry and sends your notifications, media info or Claude conversations nowhere. The optional calendar integration contacts Google after you connect your Google account.
@@ -434,7 +445,7 @@ Issues and pull requests are welcome.
 
 If the Claude app changes its interface, the labels FloatingBar looks for are collected at the top of `src-tauri/src/claude_app.rs` and in `src-tauri/src/ui_permission.rs`.
 
-Maintainers: see the [release and pre-push checklist](docs/RELEASING.md) and prepared [v0.2.0 release notes](docs/releases/v0.2.0.md).
+Maintainers: see the [release and pre-push checklist](docs/RELEASING.md) and prepared [v0.3.0 release notes](docs/releases/v0.3.0.md).
 
 ## License
 
