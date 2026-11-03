@@ -48,6 +48,7 @@ import { TodoPanel } from "./components/TodoPanel";
 import { CalendarPage } from "./components/CalendarPage";
 import { CodexPanel } from "./components/CodexPanel";
 import { AiSettings } from "./components/AiSettings";
+import { ConnectionHelp } from "./components/ConnectionHelp";
 import { invoke } from "@tauri-apps/api/core";
 import { useCodex } from "./lib/codex";
 
@@ -148,6 +149,7 @@ export default function App() {
   useEffect(()=>{invoke<boolean>("get_test_mode").then(setIsolatedTest).catch(()=>{});},[]);
   const [aiProvider, setAiProvider] = useState<"claude" | "codex">(demo === "codex" ? "codex" : "claude");
   const [typing, setTyping] = useState(false);
+  const [connectionHelpOpen, setConnectionHelpOpen] = useState(false);
   const [pager, setPager] = useState({ index: HOME_PAGE, dir: 0 });
   const page = PAGES[pager.index].id;
   const todos = useTodos();
@@ -160,7 +162,7 @@ export default function App() {
   const demoOpen = !!demo && demo !== "compact" && demo !== "discord" && demo !== "discord-compact";
   const calendar = useCalendar(page === "calendar" && !showTodo && !showDC && (hover || peek || typing || demoOpen));
   // Stay open for active editing, OAuth, and explicit overlays.
-  const pinned = drag.dragging || demoOpen || (showDC ? discordPinned : typing || ask.busy || codex.busy || calendar.connecting || showTodo);
+  const pinned = drag.dragging || demoOpen || connectionHelpOpen || (showDC ? discordPinned : typing || ask.busy || codex.busy || calendar.connecting || showTodo);
 
   // Auto-open Discord VC when joining voice, auto-close when leaving
   const wasInVoice = useRef(discord.inVoice);
@@ -209,6 +211,7 @@ export default function App() {
   // up, turn once, then ignore the rest of that gesture.
   const swipe = useRef({ distance: 0, last: 0, lockedUntil: 0 });
   const onWheel = (e: React.WheelEvent) => {
+    if ((e.target as HTMLElement).closest("[data-no-swipe]")) return;
     const horizontal = e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY);
     if (horizontal && mode === "open" && !showDC && !showTodo) {
       const s = swipe.current;
@@ -234,7 +237,7 @@ export default function App() {
   const dragRef = useRef<{ startX: number; swiped: boolean } | null>(null);
   const onDragPointerDown = (e: React.PointerEvent) => {
     // Only act on the body area, not on interactive elements
-    if ((e.target as HTMLElement).closest("button, input, textarea, select, a, label, summary, .ask__grip, [data-drag-handle]")) return;
+    if ((e.target as HTMLElement).closest("button, input, textarea, select, a, label, summary, .ask__grip, [data-drag-handle], [data-no-swipe]")) return;
     if (mode !== "open" || showDC || showTodo) return;
     dragRef.current = { startX: e.clientX, swiped: false };
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -320,7 +323,7 @@ export default function App() {
                     exit={{ opacity: 0, y: 10 }}
                     transition={{ duration: 0.22, ease: "easeOut" }}
                   >
-                    <DiscordVC discord={discord} pinned={discordPinned} onTogglePin={() => setDiscordPinned((p) => !p)} />
+                    <DiscordVC discord={discord} pinned={discordPinned} onTogglePin={() => setDiscordPinned((p) => !p)} onHelpOpen={setConnectionHelpOpen} />
                   </motion.div>
                 ) : (
                   <motion.div
@@ -344,11 +347,11 @@ export default function App() {
                         <select className="ai__provider" aria-label="Aplikasi AI" value={aiProvider} onChange={(e) => setAiProvider(e.target.value as "claude" | "codex")}>
                           <option value="claude">Claude desktop</option><option value="codex">ChatGPT / Codex</option>
                         </select>
-                        {aiProvider === "claude" ? <ClaudePage ask={ask} onTyping={setTyping} /> : <CodexPanel codex={codex} onTyping={setTyping} />}
+                        {aiProvider === "claude" ? <ClaudePage ask={ask} onTyping={setTyping} /> : <CodexPanel codex={codex} onTyping={setTyping} onHelpOpen={setConnectionHelpOpen} />}
                         <AiSettings />
                       </div>
                     ) : page === "calendar" ? (
-                      <CalendarPage calendar={calendar} now={now} onTyping={setTyping} />
+                      <CalendarPage calendar={calendar} now={now} onTyping={setTyping} onHelpOpen={setConnectionHelpOpen} />
                     ) : media ? (
                       <Player media={media} onPlayPause={playPause} onNext={next} onPrevious={previous}>
                         {volume && (
@@ -918,7 +921,7 @@ function Battery({ battery, showPercent }: { battery: BatteryInfo | null; showPe
 // ---- Discord Voice Channel Panel ----
 const DC_VISIBLE = 5;
 
-function DiscordVC({ discord, pinned, onTogglePin }: { discord: ReturnType<typeof useDiscord>; pinned: boolean; onTogglePin: () => void }) {
+function DiscordVC({ discord, pinned, onTogglePin, onHelpOpen }: { discord: ReturnType<typeof useDiscord>; pinned: boolean; onTogglePin: () => void; onHelpOpen: (open: boolean) => void }) {
   const isReal = discord.inVoice;
   const users = isReal ? discord.users : (demo ? MOCK_DC_USERS : []);
   const [page, setPage] = useState(0);
@@ -958,6 +961,7 @@ function DiscordVC({ discord, pinned, onTogglePin }: { discord: ReturnType<typeo
         <button onClick={() => discord.reconnect(true)}>Autentikasi ulang</button>
       </div>}
 
+      <ConnectionHelp topic="discord" onOpenChange={onHelpOpen} />
       <DiscordIntegrationSettings discord={discord} />
 
       <div className="dc__users">

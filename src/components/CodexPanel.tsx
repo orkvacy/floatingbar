@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import type { useCodex } from "../lib/codex";
+import { ConnectionHelp } from "./ConnectionHelp";
 
-export function CodexPanel({ codex, onTyping }: { codex: ReturnType<typeof useCodex>; onTyping: (v: boolean) => void }) {
+export function CodexPanel({ codex, onTyping, onHelpOpen }: { codex: ReturnType<typeof useCodex>; onTyping: (v: boolean) => void; onHelpOpen: (v: boolean) => void }) {
   const refreshRef = useRef(codex.refresh);
   refreshRef.current = codex.refresh;
   useEffect(() => { void refreshRef.current(); }, []);
@@ -17,6 +18,7 @@ export function CodexPanel({ codex, onTyping }: { codex: ReturnType<typeof useCo
       <button className="ask__expand" aria-label="Muat ulang Codex" disabled={codex.loading} onClick={() => void codex.refresh()}>⟳</button>
     </div>
     {codex.cursor && <button className="ask__link" disabled={codex.loading} onClick={() => void codex.refresh(true)}>Muat percakapan berikutnya</button>}
+    <ConnectionHelp topic="codex" onOpenChange={onHelpOpen} />
     <label className="codex__folder">Folder kerja<input aria-label="Folder kerja Codex" value={codex.cwd} disabled={codex.busy || codex.owned}
       placeholder="D:\projects\my-app" onChange={(e) => codex.setCwd(e.target.value)} onFocus={() => onTyping(true)} onBlur={() => onTyping(false)} /></label>
     <p className="ask__status">{codex.selected && !codex.owned ? "Percakapan asli dibaca saja. Mengirim membuat salinan sesi di FloatingBar." : "Codex App Server · sesi FloatingBar · read-only, izin tambahan diminta terpisah."}</p>

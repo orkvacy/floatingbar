@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { CalendarIcon, RefreshIcon } from "../icons";
 import { demo } from "../lib/native";
 import { openCalendarLink, type CalendarEvent, type useCalendar } from "../lib/calendar";
+import { ConnectionHelp } from "./ConnectionHelp";
 
 const time = (date: string) => new Date(date).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }).replace(".", ":");
 
-export function CalendarPage({ calendar, now, onTyping }: {
-  calendar: ReturnType<typeof useCalendar>; now: Date; onTyping: (value: boolean) => void;
+export function CalendarPage({ calendar, now, onTyping, onHelpOpen }: {
+  calendar: ReturnType<typeof useCalendar>; now: Date; onTyping: (value: boolean) => void; onHelpOpen: (value: boolean) => void;
 }) {
   const [showSetup, setShowSetup] = useState(demo === "calendar-setup");
   const [json, setJson] = useState("");
@@ -24,6 +25,7 @@ export function CalendarPage({ calendar, now, onTyping }: {
         <div><h2><CalendarIcon />Agenda hari ini</h2><p>{date}</p></div>
         {calendar.connected && <button className="organizer__icon" onClick={() => void calendar.refresh()} disabled={calendar.loading || calendar.connecting} aria-label="Perbarui agenda" title="Perbarui agenda"><RefreshIcon className={calendar.loading ? "organizer__spin" : ""} /></button>}
       </div>
+      <ConnectionHelp topic="calendar" onOpenChange={onHelpOpen} />
       {calendar.error && <p className="organizer__error" role="alert">{calendar.error}</p>}
       {calendar.checking ? <p className="organizer__empty" role="status">Memeriksa koneksi kalender…</p> : calendar.connecting ? (
         <div className="organizer__empty" role="status"><CalendarIcon /><strong>Lanjutkan di browser</strong><span>Pilih akun Google dan izinkan akses baca kalender. Panel ini akan diperbarui setelah login.</span><button className="organizer__text" onClick={calendar.cancel}>Batalkan login</button></div>
@@ -32,11 +34,7 @@ export function CalendarPage({ calendar, now, onTyping }: {
           {!showSetup && <div className="agenda__welcome"><CalendarIcon /><strong>Harimu, dalam satu pandangan</strong><p>Lihat agenda dari kalender pribadi, kelas, dan kalender yang dibagikan ke akunmu.</p></div>}
           {!showSetup ? <button className="organizer__primary agenda__connect" onClick={() => setShowSetup(true)}>Hubungkan Google Calendar</button> : (
             <div className="agenda__setup">
-              <details><summary>Setup Google satu kali</summary><ol>
-                <li>Buka <button className="organizer__text" onClick={() => open("https://console.cloud.google.com/apis/library/calendar-json.googleapis.com")}>Google Cloud</button> dan aktifkan Google Calendar API.</li>
-                <li>Atur OAuth consent screen. Jika masih Testing, tambahkan emailmu sebagai test user.</li>
-                <li>Buat OAuth client bertipe <strong>Desktop app</strong>, lalu unduh JSON kredensial.</li>
-              </ol></details>
+              <p className="agenda__setup-hint">Sudah punya file JSON? Pilih di bawah. Belum punya? Buka <strong>Panduan koneksi Google Calendar</strong> di atas, mulai langkah 1.</p>
               <label className="agenda__upload">Pilih file kredensial (.json)<input type="file" accept=".json,application/json" onChange={async (e) => {
                 const file = e.target.files?.[0]; e.target.value = "";
                 if (!file) return;

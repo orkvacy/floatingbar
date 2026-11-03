@@ -152,6 +152,8 @@ Saat diletakkan dekat bagian bawah monitor, pill membesar ke atas. Jendela dibat
 
 ## Panel Discord
 
+Baru pertama menghubungkan akun? Ikuti [panduan koneksi bergambar](docs/CONNECTIONS.id.md) untuk Google Calendar, Discord, dan Codex. Panduan bertahap juga tersedia langsung di masing-masing panel melalui tombol **Panduan koneksi**.
+
 Buka Discord desktop, lalu panel headset di FloatingBar. Pada **Pengaturan integrasi Discord**, masukkan Client ID dan Client Secret aplikasi milik Anda dari Discord Developer Portal, simpan, lalu setujui otorisasi Discord. Akses RPC voice bergantung pada izin aplikasi Discord; jika akses dibatasi, akun Anda mungkin perlu terdaftar sebagai tester. Tidak ada kredensial Discord yang disertakan dalam source atau installer baru. Kredensial dan token disimpan terenkripsi Windows DPAPI pada perangkat ini. Gunakan pengaturan yang sama untuk mengganti secret setelah rotasi.
 
 Saat panel Discord dipilih dan voice aktif, kursor yang meninggalkan pill akan mengecilkannya menjadi deretan avatar anggota. Hover pill untuk membuka panel kembali. Tombol **pin** di kanan atas panel mempertahankan panel terbuka; klik lagi untuk kembali mengecil otomatis. Maksimal lima avatar ditampilkan dalam mode ringkas, diikuti jumlah anggota lainnya; lingkaran hijau menandai yang sedang berbicara.
@@ -432,7 +434,7 @@ Issue dan pull request sangat diterima.
 
 Kalau aplikasi Claude mengubah antarmukanya, label yang dicari FloatingBar dikumpulkan di bagian atas `src-tauri/src/claude_app.rs` dan di `src-tauri/src/ui_permission.rs`.
 
-Panduan maintainer: [rilis dan pemeriksaan sebelum push](docs/RELEASING.md). Catatan rilis yang disiapkan: [v0.4.0-rc.1](docs/releases/v0.4.0-rc.1.md).
+Panduan maintainer: [rilis dan pemeriksaan sebelum push](docs/RELEASING.md). Catatan rilis yang disiapkan: [v1.0.0](docs/releases/v1.0.0.md).
 
 ## Lisensi
 

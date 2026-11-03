@@ -152,6 +152,8 @@ Near the bottom of a monitor, the pill expands upward. Its window is constrained
 
 ## Discord panel
 
+New to account setup? See the [illustrated connection guide (Indonesian)](docs/CONNECTIONS.id.md) for Google Calendar, Discord, and Codex. Each panel also includes an Indonesian **Panduan koneksi** step-by-step guide.
+
 Open Discord desktop, then the headset panel in FloatingBar. Under **Pengaturan integrasi Discord**, enter your own application’s Client ID and Client Secret from Discord Developer Portal, save, and authorize in Discord. Voice RPC depends on Discord application access; restricted applications may require your account to be registered as a tester. New source and installers contain no bundled Discord credentials. Credentials and tokens are stored on this device using Windows DPAPI encryption. Use these settings again after rotating your secret.
 
 With the Discord panel selected and voice active, leaving the pill collapses it to member avatars. Hover to expand again. The **pin** button at the panel’s top right keeps it expanded; toggle it off to restore automatic collapse. Compact mode shows up to five avatars plus an overflow count, with a green ring for speaking members.
@@ -432,7 +434,7 @@ Issues and pull requests are welcome.
 
 If the Claude app changes its interface, the labels FloatingBar looks for are collected at the top of `src-tauri/src/claude_app.rs` and in `src-tauri/src/ui_permission.rs`.
 
-Maintainers: see the [release and pre-push checklist](docs/RELEASING.md) and prepared [v0.4.0-rc.1 release notes](docs/releases/v0.4.0-rc.1.md).
+Maintainers: see the [release and pre-push checklist](docs/RELEASING.md) and prepared [v1.0.0 release notes](docs/releases/v1.0.0.md).
 
 ## License
 

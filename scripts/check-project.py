@@ -25,7 +25,7 @@ assert isinstance(csp, dict), "Release CSP must be explicit"
 assert "'unsafe-eval'" not in csp["script-src"] and "'unsafe-inline'" not in csp["script-src"]
 assert csp["object-src"] == "'none'" and csp["base-uri"] == "'none'"
 assert "https:" not in csp["connect-src"].split(), "Frontend must use scoped IPC, not arbitrary network access"
-for filename in ["README.md", "README.id.md", "docs/RELEASING.md", "docs/AI-PERMISSIONS.md", "docs/RELEASE-READINESS.md", f"docs/releases/v{version}.md"]:
+for filename in ["README.md", "README.id.md", "docs/RELEASING.md", "docs/AI-PERMISSIONS.md", "docs/RELEASE-READINESS.md", "docs/CONNECTIONS.id.md", f"docs/releases/v{version}.md"]:
     path = ROOT / filename
     for match in re.findall(r'\]\(([^)]+)\)|src="([^"]+)"', path.read_text(encoding="utf-8")):
         target = next(v for v in match if v)

@@ -197,6 +197,18 @@ fn edit_shortcuts(app: AppHandle) -> Result<(), String> {
     shortcuts::edit(&app)
 }
 
+/// Only these documentation destinations can be opened by the connection guide.
+#[tauri::command]
+fn open_help_link(link: String) -> Result<(), String> {
+    let url = match link.as_str() {
+        "google-console" => "https://console.cloud.google.com/",
+        "discord-portal" => "https://discord.com/developers/applications",
+        "codex-docs" => "https://developers.openai.com/codex/cli",
+        _ => return Err("Tautan panduan tidak dikenal".into()),
+    };
+    shortcuts::launch(url)
+}
+
 fn playing_app(state: &AppState) -> Option<String> {
     state.media.lock().unwrap().as_ref().map(|m| m.app_id.clone())
 }
@@ -489,6 +501,7 @@ pub fn run() {
             get_shortcuts,
             open_shortcut,
             edit_shortcuts,
+            open_help_link,
             get_volume,
             set_volume,
             set_muted,
